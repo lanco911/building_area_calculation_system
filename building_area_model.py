@@ -1,12 +1,13 @@
 import pandas as pd
 from PyQt5.QtWidgets import QFileDialog
+import sqlite3
 
 class BuildingAreaModel:
     """
     建筑面积模型类
     
     负责处理建筑面积数据的导入、存储和管理。
-    提供了导入Excel文件和保存数据的功能。
+    提供了导入Excel文件和保存数据到SQLite数据库的功能。
     """
 
     def __init__(self):
@@ -16,6 +17,7 @@ class BuildingAreaModel:
         创建一个空列表来存储导入的数据
         """
         self.data = []  # 用于存储导入的数据
+        self.headers = []  # 用于存储表头
 
     def import_data(self):
         """
@@ -40,6 +42,9 @@ class BuildingAreaModel:
                 # 使用pandas读取Excel文件
                 df = pd.read_excel(file_path)
                 
+                # 保存表头
+                self.headers = df.columns.tolist()
+                
                 # 将DataFrame转换为列表
                 self.data = df.values.tolist()
                 
@@ -54,16 +59,46 @@ class BuildingAreaModel:
             print("未选择文件")
             return []
 
-    def save_data(self):
+    def save_data(self, table_name):
         """
-        保存数据的方法（当前为模拟实现）
+        保存数据到SQLite数据库
         
-        目前只是打印一条消息，实际实现可能涉及将数据保存到文件或数据库。
+        将self.data中的数据保存到指定的SQLite数据库表中。
+        如果表不存在，则创建新表；如果表已存在，则覆盖原有数据。
         
-        注意:
-            - 这是一个占位方法，需要根据实际需求进行完善
-            - 可能需要考虑数据格式、存储位置等因素
+        参数:
+            table_name (str): 要保存数据的表名
+        
+        返回:
+            bool: 保存成功返回True，失败返回False
         """
-        # 模拟数据保存逻辑
-        print("保存数据")
-        # TODO: 实现将self.data保存到文件或数据库的逻辑
+        if not self.data or not self.headers:
+            print("没有数据可保存")
+            return False
+
+        try:
+            # 连接到SQLite数据库（如果不存在则创建）
+            conn = sqlite3.connect('building_area.db')
+            cursor = conn.cursor()
+
+            # 创建表（如果不存在）
+            columns = ', '.join([f'"{header}" TEXT' for header in self.headers])
+            cursor.execute(f'''CREATE TABLE IF NOT EXISTS "{table_name}" 
+                              ({columns})''')
+
+            # 删除表中现有数据
+            cursor.execute(f'DELETE FROM "{table_name}"')
+
+            # 插入新数据
+            placeholders = ', '.join(['?' for _ in self.headers])
+            cursor.executemany(f'INSERT INTO "{table_name}" VALUES ({placeholders})', self.data)
+
+            # 提交更改并关闭连接
+            conn.commit()
+            conn.close()
+
+            print(f"成功保存数据到表 {table_name}，共{len(self.data)}行")
+            return True
+        except Exception as e:
+            print(f"保存数据时出错：{str(e)}")
+            return False

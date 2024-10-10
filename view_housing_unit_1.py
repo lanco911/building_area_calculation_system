@@ -66,6 +66,30 @@ class HousingUnit1(QWidget):
             for col, value in enumerate(row_data):
                 self.table.setItem(row, col, QTableWidgetItem(str(value)))  # 填充表格数据
 
+    def get_table_data(self):
+        """
+        获取表格中的所有数据
+        
+        返回:
+            list: 包含表格所有数据的二维列表
+        """
+        data = []
+        for row in range(self.table.rowCount()):
+            row_data = []
+            for col in range(self.table.columnCount()):
+                item = self.table.item(row, col)
+                row_data.append(item.text() if item else "")
+            data.append(row_data)
+        return data
+
+    def get_table_headers(self):
+        """
+        获取表格的表头
+        
+        返回:
+            list: 包含表格表头的列表
+        """
+        return [self.table.horizontalHeaderItem(col).text() for col in range(self.table.columnCount())]
 
 if __name__ == '__main__':
     """
