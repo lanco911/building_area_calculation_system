@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QLabel, QGroupBox, QListWidget, QDialog, QDialogButtonBox, QScrollArea, QInputDialog
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QLabel, QGroupBox, QListWidget, QDialog, QDialogButtonBox, QScrollArea, QInputDialog, QTabWidget, QMessageBox
 from PyQt5.QtCore import Qt
 
 # 选择单元对话框类
@@ -17,14 +17,15 @@ class SelectUnitsDialog(QDialog):
 
         # 添加确定和取消按钮
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
+        buttons.accepted.connect(self.accept)  # 连接确定按钮的信号到对话框的接受槽
+        buttons.rejected.connect(self.reject)  # 连接取消按钮的信号到对话框的拒绝槽
         self.layout.addWidget(buttons)
 
-        self.setLayout(self.layout)
+        self.setLayout(self.layout)  # 设置对话框的布局
 
     # 获取选中的单元
     def get_selected_units(self):
+        # 返回所有被选中的单元的文本
         return [item.text() for item in self.unit_list.selectedItems()]
 
 # 共有建筑服务范围区设置视图类
@@ -34,92 +35,111 @@ class CommonServiceAreaSettingsView(QWidget):
         self.available_units = ["单元1", "单元2", "单元3", "单元4", "单元5"]  # 示例可用单元
         self.group_count = 0  # 分组计数器
         self.service_areas = []  # 存储服务区控件的列表
-        self.initUI()
+        self.initUI()  # 初始化用户界面
 
     def initUI(self):
         # 创建主垂直布局
         self.main_layout = QVBoxLayout()
         self.setLayout(self.main_layout)
 
-        # 添加服务区部分
-        add_service_layout = QHBoxLayout()
-        self.service_input = QLineEdit()
-        self.service_input.setPlaceholderText("输入新服务区名称")
+        # 创建顶部水平布局，用于放置添加服务区按钮
+        top_layout = QHBoxLayout()
+        
+        # 添加服务区按钮
         add_service_button = QPushButton("添加服务区")
-        add_service_button.clicked.connect(self.add_service_area)
-        add_service_layout.addWidget(self.service_input)
-        add_service_layout.addWidget(add_service_button)
-        self.main_layout.addLayout(add_service_layout)
+        add_service_button.clicked.connect(self.add_service_area)  # 连接按钮点击信号到添加服务区的方法
+        add_service_button.setMaximumWidth(100)  # 设置按钮的最大宽度
+        top_layout.addWidget(add_service_button)
+        top_layout.addStretch(1)  # 添加弹性空间，将按钮推到左边
+        
+        self.main_layout.addLayout(top_layout)
 
-        # 创建滚动区域，用于容纳多个服务区
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_content = QWidget()
-        self.scroll_layout = QVBoxLayout(self.scroll_content)
-        self.scroll_area.setWidget(self.scroll_content)
-        self.main_layout.addWidget(self.scroll_area)
+        # 创建标签页控件并设置标签位置在左侧
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setTabPosition(QTabWidget.West)  # 设置标签页位置在左侧
+        self.main_layout.addWidget(self.tab_widget)
 
         # 设置窗口标题和大小
         self.setWindowTitle('共有建筑服务范围区设置')
-        self.setGeometry(300, 300, 800, 600)
+        self.setGeometry(300, 300, 1000, 600)  # 增加窗口宽度
 
     def add_service_area(self):
-        service_name = self.service_input.text()
-        if service_name:
+        # 弹出输入对话框
+        service_name, ok = QInputDialog.getText(self, '添加服务区', '请输入新服务区名称:')
+        if ok and service_name:
             # 创建新的服务区控件
-            service_widget = QGroupBox(service_name)
-            service_layout = QVBoxLayout()
+            service_widget = QWidget()
+            service_layout = QVBoxLayout(service_widget)
 
-            # 添加分组和加载数据按钮
+            # 添加按钮布局
             buttons_layout = QHBoxLayout()
             load_data_button = QPushButton("加载数据")
             load_data_button.clicked.connect(self.load_data)
             load_data_button.setMaximumWidth(100)
+            select_common_parts_button = QPushButton("选择分摊公共建筑部位")
+            select_common_parts_button.setMaximumWidth(180)
             add_group_button = QPushButton("添加分组")
             add_group_button.setMaximumWidth(100)
             buttons_layout.addWidget(load_data_button)
+            buttons_layout.addWidget(select_common_parts_button)
             buttons_layout.addStretch(1)
             buttons_layout.addWidget(add_group_button)
             service_layout.addLayout(buttons_layout)
 
-            # 创建滚动区域，用于容纳多个分组
+            # 创建水平布局，用于放置公共建筑部位和其他分组
+            content_layout = QHBoxLayout()
+
+            # 创建公共建筑部位的垂直布局
+            common_parts_layout = QVBoxLayout()
+            content_layout.addLayout(common_parts_layout)
+
+            # 创建滚动区域，用于容纳其他分组
             group_scroll_area = QScrollArea()
             group_scroll_area.setWidgetResizable(True)
             group_scroll_content = QWidget()
             group_scroll_layout = QHBoxLayout(group_scroll_content)
+            group_scroll_layout.setAlignment(Qt.AlignLeft)
+            group_scroll_layout.addStretch(1)
             group_scroll_area.setWidget(group_scroll_content)
-            service_layout.addWidget(group_scroll_area)
+            content_layout.addWidget(group_scroll_area)
 
-            # 将添加分组按钮连接到新的方法
+            service_layout.addLayout(content_layout)
+
+            # 连接按钮点击事件
+            select_common_parts_button.clicked.connect(lambda: self.add_common_parts_group(common_parts_layout))
             add_group_button.clicked.connect(lambda: self.add_group(group_scroll_layout))
 
-            # 添加保存按钮
+            # 添加保存和删除按钮
+            bottom_buttons_layout = QHBoxLayout()
             save_button = QPushButton("保存数据")
             save_button.setMaximumWidth(100)
-            save_button_layout = QHBoxLayout()
-            save_button_layout.addStretch(1)
-            save_button_layout.addWidget(save_button)
-            service_layout.addLayout(save_button_layout)
-
-            # 添加删除服务区按钮
             delete_service_button = QPushButton("删除服务区")
-            delete_service_button.clicked.connect(lambda: self.delete_service_area(service_widget))
-            service_layout.addWidget(delete_service_button)
+            delete_service_button.setMaximumWidth(100)
+            delete_service_button.clicked.connect(lambda: self.delete_service_area(self.tab_widget.indexOf(service_widget)))
+            bottom_buttons_layout.addStretch(1)
+            bottom_buttons_layout.addWidget(save_button)
+            bottom_buttons_layout.addWidget(delete_service_button)
+            service_layout.addLayout(bottom_buttons_layout)
 
-            service_widget.setLayout(service_layout)
-            self.scroll_layout.addWidget(service_widget)
+            # 将新创建的服务区控件添加到标签页中
+            self.tab_widget.addTab(service_widget, service_name)
             self.service_areas.append(service_widget)
-            self.service_input.clear()
 
-    def delete_service_area(self, service_widget):
-        self.scroll_layout.removeWidget(service_widget)
-        self.service_areas.remove(service_widget)
-        service_widget.deleteLater()
+            # 切换到新添加的标签页
+            self.tab_widget.setCurrentIndex(self.tab_widget.count() - 1)
+
+    def delete_service_area(self, index):
+        if index != -1:
+            service_widget = self.tab_widget.widget(index)
+            self.tab_widget.removeTab(index)
+            self.service_areas.remove(service_widget)
+            service_widget.deleteLater()
 
     def add_group(self, parent_layout):
+        # 弹出对话框获取新分组名称
         group_name, ok = QInputDialog.getText(self, '添加分组', '请输入新分组名称:')
         if ok and group_name:
-            self.group_count += 1
+            self.group_count += 1  # 增加分组计数
             group_widget = QGroupBox(f"{group_name}")
             group_layout = QVBoxLayout()
 
@@ -127,7 +147,7 @@ class CommonServiceAreaSettingsView(QWidget):
             participating_layout = QHBoxLayout()
             
             list_layout = QVBoxLayout()
-            participating_units = QListWidget()
+            participating_units = QListWidget()  # 创建参与分摊单元的列表控件
             list_layout.addWidget(participating_units)
             participating_layout.addLayout(list_layout)
             
@@ -157,13 +177,16 @@ class CommonServiceAreaSettingsView(QWidget):
             group_layout.addLayout(delete_group_layout)
             
             group_widget.setLayout(group_layout)
-            group_widget.setFixedWidth(300)  # 增加宽度以适应按钮
-            parent_layout.addWidget(group_widget)
+            group_widget.setFixedWidth(250)  # 设置固定宽度
+            
+            # 将新的分组插入到最后一个项（弹性空间）之前
+            parent_layout.insertWidget(parent_layout.count() - 1, group_widget)
 
     def delete_group(self, group_widget, parent_layout):
+        # 从布局中移除并删除指定的分组控件
         parent_layout.removeWidget(group_widget)
         group_widget.deleteLater()
-        self.group_count -= 1
+        self.group_count -= 1  # 减少分组计数
 
     # 加载数据（待实现）
     def load_data(self):
@@ -172,19 +195,55 @@ class CommonServiceAreaSettingsView(QWidget):
 
     # 添加参与分摊单元
     def add_participating_unit(self, list_widget):
+        # 弹出选择单元对话框
         dialog = SelectUnitsDialog(self.available_units)
         if dialog.exec_():
-            selected_units = dialog.get_selected_units()
+            selected_units = dialog.get_selected_units()  # 获取选中的单元
             for unit in selected_units:
+                # 检查单元是否已存在于列表中
                 if list_widget.findItems(unit, Qt.MatchExactly) == []:
-                    list_widget.addItem(unit)
+                    list_widget.addItem(unit)  # 添加新单元到列表
 
     # 删除参与分摊单元
     def delete_participating_unit(self, list_widget):
-        current_item = list_widget.currentItem()
+        current_item = list_widget.currentItem()  # 取当前选中的单元
         if current_item:
             # 这里可以添加处理删除单元的逻辑
-            list_widget.takeItem(list_widget.row(current_item))
+            list_widget.takeItem(list_widget.row(current_item))  # 从列表中移除选中的单元
+
+    def add_common_parts_group(self, parent_layout):
+        if parent_layout.count() == 0:  # 只有当还没有添加公共建筑部位时才添加
+            group_widget = QGroupBox("分摊公共建筑部位")
+            group_layout = QVBoxLayout()
+
+            # 设置参与分摊单元布局
+            participating_layout = QHBoxLayout()
+            
+            list_layout = QVBoxLayout()
+            participating_units = QListWidget()
+            list_layout.addWidget(participating_units)
+            participating_layout.addLayout(list_layout)
+            
+            # 添加和删除单元的按钮
+            buttons_layout = QVBoxLayout()
+            add_participating_button = QPushButton("添加")
+            add_participating_button.setMaximumWidth(60)
+            add_participating_button.clicked.connect(lambda: self.add_participating_unit(participating_units))
+            delete_participating_button = QPushButton("删除")
+            delete_participating_button.setMaximumWidth(60)
+            delete_participating_button.clicked.connect(lambda: self.delete_participating_unit(participating_units))
+            buttons_layout.addWidget(add_participating_button)
+            buttons_layout.addWidget(delete_participating_button)
+            buttons_layout.addStretch(1)
+            participating_layout.addLayout(buttons_layout)
+            
+            group_layout.addLayout(participating_layout)
+            
+            group_widget.setLayout(group_layout)
+            group_widget.setFixedWidth(250)
+            parent_layout.addWidget(group_widget)
+        else:
+            QMessageBox.warning(self, "警告", "分摊公共建筑部位已存在")
 
 if __name__ == '__main__':
     # 创建应用程序实例并运行
