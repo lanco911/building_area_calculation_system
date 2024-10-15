@@ -28,13 +28,13 @@ class SelectUnitsDialog(QDialog):
         # 返回所有被选中的单元的文本
         return [item.text() for item in self.unit_list.selectedItems()]
 
-# 共有建筑服务范围区设置视图类
-class CommonServiceAreaSettingsView(QWidget):
+# 共有建筑分摊所属设置视图类
+class CommonAllocationSettingsView(QWidget):
     def __init__(self):
         super().__init__()
         self.available_units = ["单元1", "单元2", "单元3", "单元4", "单元5"]  # 示例可用单元
         self.group_count = 0  # 分组计数器
-        self.service_areas = []  # 存储服务区控件的列表
+        self.allocation_areas = []  # 存储分摊所属控件的列表
         self.initUI()  # 初始化用户界面
 
     def initUI(self):
@@ -42,14 +42,14 @@ class CommonServiceAreaSettingsView(QWidget):
         self.main_layout = QVBoxLayout()
         self.setLayout(self.main_layout)
 
-        # 创建顶部水平布局，用于放置添加服务区按钮
+        # 创建顶部水平布局，用于放置添加分摊所属按钮
         top_layout = QHBoxLayout()
         
-        # 添加服务区按钮
-        add_service_button = QPushButton("添加服务区")
-        add_service_button.clicked.connect(self.add_service_area)  # 连接按钮点击信号到添加服务区的方法
-        add_service_button.setMaximumWidth(100)  # 设置按钮的最大宽度
-        top_layout.addWidget(add_service_button)
+        # 添加分摊所属按钮
+        add_allocation_button = QPushButton("添加分摊所属")
+        add_allocation_button.clicked.connect(self.add_allocation_area)  # 连接按钮点击信号到添加分摊所属的方法
+        add_allocation_button.setMaximumWidth(120)  # 设置按钮的最大宽度
+        top_layout.addWidget(add_allocation_button)
         top_layout.addStretch(1)  # 添加弹性空间，将按钮推到左边
         
         self.main_layout.addLayout(top_layout)
@@ -60,16 +60,16 @@ class CommonServiceAreaSettingsView(QWidget):
         self.main_layout.addWidget(self.tab_widget)
 
         # 设置窗口标题和大小
-        self.setWindowTitle('共有建筑服务范围区设置')
+        self.setWindowTitle('共有建筑分摊所属设置')
         self.setGeometry(300, 300, 1000, 600)  # 增加窗口宽度
 
-    def add_service_area(self):
+    def add_allocation_area(self):
         # 弹出输入对话框
-        service_name, ok = QInputDialog.getText(self, '添加服务区', '请输入新服务区名称:')
-        if ok and service_name:
-            # 创建新的服务区控件
-            service_widget = QWidget()
-            service_layout = QVBoxLayout(service_widget)
+        allocation_name, ok = QInputDialog.getText(self, '添加分摊所属', '请输入新分摊所属名称:')
+        if ok and allocation_name:
+            # 创建新的分摊所属控件
+            allocation_widget = QWidget()
+            allocation_layout = QVBoxLayout(allocation_widget)
 
             # 添加按钮布局
             buttons_layout = QHBoxLayout()
@@ -84,7 +84,7 @@ class CommonServiceAreaSettingsView(QWidget):
             buttons_layout.addWidget(select_common_parts_button)
             buttons_layout.addStretch(1)
             buttons_layout.addWidget(add_group_button)
-            service_layout.addLayout(buttons_layout)
+            allocation_layout.addLayout(buttons_layout)
 
             # 创建水平布局，用于放置公共建筑部位和其他分组
             content_layout = QHBoxLayout()
@@ -103,7 +103,7 @@ class CommonServiceAreaSettingsView(QWidget):
             group_scroll_area.setWidget(group_scroll_content)
             content_layout.addWidget(group_scroll_area)
 
-            service_layout.addLayout(content_layout)
+            allocation_layout.addLayout(content_layout)
 
             # 连接按钮点击事件
             select_common_parts_button.clicked.connect(lambda: self.add_common_parts_group(common_parts_layout))
@@ -113,27 +113,27 @@ class CommonServiceAreaSettingsView(QWidget):
             bottom_buttons_layout = QHBoxLayout()
             save_button = QPushButton("保存数据")
             save_button.setMaximumWidth(100)
-            delete_service_button = QPushButton("删除服务区")
-            delete_service_button.setMaximumWidth(100)
-            delete_service_button.clicked.connect(lambda: self.delete_service_area(self.tab_widget.indexOf(service_widget)))
+            delete_allocation_button = QPushButton("删除分摊所属")
+            delete_allocation_button.setMaximumWidth(120)
+            delete_allocation_button.clicked.connect(lambda: self.delete_allocation_area(self.tab_widget.indexOf(allocation_widget)))
             bottom_buttons_layout.addStretch(1)
             bottom_buttons_layout.addWidget(save_button)
-            bottom_buttons_layout.addWidget(delete_service_button)
-            service_layout.addLayout(bottom_buttons_layout)
+            bottom_buttons_layout.addWidget(delete_allocation_button)
+            allocation_layout.addLayout(bottom_buttons_layout)
 
-            # 将新创建的服务区控件添加到标签页中
-            self.tab_widget.addTab(service_widget, service_name)
-            self.service_areas.append(service_widget)
+            # 将新创建的分摊所属控件添加到标签页中
+            self.tab_widget.addTab(allocation_widget, allocation_name)
+            self.allocation_areas.append(allocation_widget)
 
             # 切换到新添加的标签页
             self.tab_widget.setCurrentIndex(self.tab_widget.count() - 1)
 
-    def delete_service_area(self, index):
+    def delete_allocation_area(self, index):
         if index != -1:
-            service_widget = self.tab_widget.widget(index)
+            allocation_widget = self.tab_widget.widget(index)
             self.tab_widget.removeTab(index)
-            self.service_areas.remove(service_widget)
-            service_widget.deleteLater()
+            self.allocation_areas.remove(allocation_widget)
+            allocation_widget.deleteLater()
 
     def add_group(self, parent_layout):
         # 弹出对话框获取新分组名称
@@ -248,6 +248,6 @@ class CommonServiceAreaSettingsView(QWidget):
 if __name__ == '__main__':
     # 创建应用程序实例并运行
     app = QApplication(sys.argv)
-    view = CommonServiceAreaSettingsView()
+    view = CommonAllocationSettingsView()
     view.show()
     sys.exit(app.exec_())
