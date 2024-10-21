@@ -1,7 +1,7 @@
 import sys
 from PyQt5.QtWidgets import QApplication
-from building_area_model import BuildingAreaModel
-from building_area_controller import BuildingAreaController
+from model import BuildingAreaModel
+from controller import BuildingAreaController
 from MainWindow import MainWindow
 
 def main():
@@ -33,7 +33,7 @@ def main():
     
     # 运行应用程序的事件循环
     # 这保持应用程序运行，直到用户关闭它
-    # sys.exit()确保应用程序干净地退出，返回退出状态码给操作系统
+    # sys.exit()确保应用程序干净地退出，返回退���状态码给操作系统
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
@@ -44,4 +44,3 @@ if __name__ == "__main__":
     将调用main()函数来启动应用程序。
     """
     main()
-

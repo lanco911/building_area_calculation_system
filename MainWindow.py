@@ -1,8 +1,8 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QMessageBox
-from view_housing_unit_1 import HousingUnit1
-from view_common_property_house_2 import CommonPropertyHouse2
-from view_common_service_set_3 import CommonAllocationSettingsView  # 导入新的视图
+from view_1_HousingUnit import HousingUnit
+from view_2_CommonPropertyHouse import CommonPropertyHouse
+from view_3_CPHouseBelongseting import CPHouseBelongseting
 
 class MainWindow(QMainWindow):
     """
@@ -24,21 +24,21 @@ class MainWindow(QMainWindow):
         
         # 设置窗口标题和初始大小
         self.setWindowTitle("房屋面积计算系统")
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 1000, 600)
 
         # 创建标签页控件
         self.tab_widget = QTabWidget()
         self.setCentralWidget(self.tab_widget)
 
         # 创建三个不同的视图实例
-        self.housing_unit_1 = HousingUnit1()
-        self.common_property_house_2 = CommonPropertyHouse2()
-        self.common_allocation_settings_3 = CommonAllocationSettingsView()  # 创建新的视图实例
+        self.housing_unit_1 = HousingUnit()
+        self.common_property_house_2 = CommonPropertyHouse()
+        self.common_allocation_settings_3 = CPHouseBelongseting()
 
         # 将视图添加到标签页中
         self.tab_widget.addTab(self.housing_unit_1, "户单元套内面积")
         self.tab_widget.addTab(self.common_property_house_2, "共有建筑面积")
-        self.tab_widget.addTab(self.common_allocation_settings_3, "共有建筑分摊所属设置")  # 添加新的标签页
+        self.tab_widget.addTab(self.common_allocation_settings_3, "共有建筑分摊所属设置")
 
     def show_message(self, title, message):
         """
