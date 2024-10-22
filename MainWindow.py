@@ -4,6 +4,8 @@ from view_1_HousingUnit import HousingUnit
 from view_2_CommonPropertyHouse import CommonPropertyHouse
 from view_3_CPHouseBelongseting import CPHouseBelongseting
 
+
+
 class MainWindow(QMainWindow):
     """
     主窗口类
@@ -56,11 +58,33 @@ if __name__ == '__main__':
     
     创建QApplication实例，显示主窗口，并启动事件循环。
     """
+        # 添加一个模拟的 Controller 类
+    class MockController:
+        def __init__(self):
+            pass
+        
+        def get_table_names(self):
+            return ["表1", "表2", "表3"]
+        
+        def fetch_data_from_table(self, table_name):
+            return [("1", "单元A", "类型1"), ("2", "单元B", "类型2")]
+        
+        def save_allocation_data(self, allocation_name, data, available_units):
+            print(f"保存数据：{allocation_name}")
+            print(f"数据：{data}")
+            return True, "数据保存成功"
+        
+        def delete_allocation_area(self, allocation_name):
+            print(f"删除分摊所属：{allocation_name}")
+            return ["表1", "表2"]
     # 创建应用程序实例
     app = QApplication(sys.argv)
     
-    # 创建并显示主窗口
-    main_window = MainWindow()
+    # 创建 controller 实例
+    controller = MockController()
+    
+    # 创建并显示主窗口，传入 controller
+    main_window = MainWindow(controller)
     main_window.show()
     
     # 启动应用程序的事件循环

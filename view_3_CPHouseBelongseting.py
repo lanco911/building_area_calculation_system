@@ -302,9 +302,31 @@ class CPHouseBelongseting(QWidget):
         else:
             QMessageBox.warning(self, "警告", "分摊公共建筑部位已存在")
 
+
+
 if __name__ == '__main__':
     # 创建应用程序实例并运行
+    # 在文件末尾，修改 main 部分
+    class MockController:
+        def __init__(self):
+            pass
+        
+        def get_table_names(self):
+            return ["表1", "表2", "表3"]
+        
+        def fetch_data_from_table(self, table_name):
+            return [("1", "单元A", "类型1"), ("2", "单元B", "类型2")]
+        
+        def save_allocation_data(self, allocation_name, data, available_units):
+            print(f"保存数据：{allocation_name}")
+            print(f"数据：{data}")
+            return True, "数据保存成功"
+        
+        def delete_allocation_area(self, allocation_name):
+            print(f"删除分摊所属：{allocation_name}")
+            return ["表1", "表2"]
     app = QApplication(sys.argv)
-    view = CPHouseBelongseting()
+    mock_controller = MockController()  # 创建模拟的 controller
+    view = CPHouseBelongseting(mock_controller)  # 传入 controller
     view.show()
     sys.exit(app.exec_())
