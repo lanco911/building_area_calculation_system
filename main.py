@@ -19,13 +19,16 @@ def main():
     # BuildingAreaModel负责处理数据逻辑，如数据的导入和管理
     model = BuildingAreaModel()
     
+    # 创建控制器实例，并将模型传递给它
+    # BuildingAreaController负责协调模型和视图之间的交互
+    controller = BuildingAreaController(model, None)  # 先创建controller，暂时传入None作为view
+    
     # 创建主窗口(视图)实例
     # MainWindow类定义了应用程序的用户界面
-    view = MainWindow()
+    view = MainWindow(controller)  # 传递controller给MainWindow
     
-    # 创建控制器实例，并将模型和视图传递给它
-    # BuildingAreaController负责协调模型和视图之间的交互
-    controller = BuildingAreaController(model, view)
+    # 设置controller的view
+    controller.set_view(view)  # 设置view并连接信号
     
     # 显示主窗口
     # 这使得用户界面可见
@@ -33,7 +36,7 @@ def main():
     
     # 运行应用程序的事件循环
     # 这保持应用程序运行，直到用户关闭它
-    # sys.exit()确保应用程序干净地退出，返回退���状态码给操作系统
+    # sys.exit()确保应用程序干净地退出，返回退状态码给操作系统
     sys.exit(app.exec_())
 
 if __name__ == "__main__":

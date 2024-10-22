@@ -130,3 +130,22 @@ class BuildingAreaModel:
     def __del__(self):
         # 确保在对象被销毁时关闭数据库连接
         self.conn.close()
+
+    def get_table_names(self):
+        """获取数据库中所有表的名称"""
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        return [row[0] for row in self.cursor.fetchall()]
+
+    def fetch_data_from_table(self, table_name):
+        """从指定表中获取ID、房号和套内面积数据"""
+        self.cursor.execute(f"SELECT ID, 房号, 套内面积 FROM '{table_name}'")
+        return self.cursor.fetchall()
+
+    def save_allocation_data(self, allocation_name, data):
+        """保存分配数据到新表"""
+        table_name = f"分摊所属_{allocation_name}"
+        self.cursor.execute(f"CREATE TABLE IF NOT EXISTS '{table_name}' (group_name TEXT, ID TEXT, 房号 TEXT, 套内面积 TEXT)")
+        self.cursor.execute(f"DELETE FROM '{table_name}'")
+        self.cursor.executemany(f"INSERT INTO '{table_name}' (group_name, ID, 房号, 套内面积) VALUES (?, ?, ?, ?)", data)
+        self.conn.commit()
+        return table_name

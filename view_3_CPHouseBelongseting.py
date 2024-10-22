@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QLabel, QGroupBox, QListWidget, QDialog, QDialogButtonBox, QScrollArea, QInputDialog, QTabWidget, QMessageBox
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QLabel, QGroupBox, QListWidget, QDialog, QDialogButtonBox, QScrollArea, QInputDialog, QTabWidget, QMessageBox, QComboBox, QListWidgetItem
 from PyQt5.QtCore import Qt
 
 # 选择单元对话框类
@@ -30,12 +30,13 @@ class SelectUnitsDialog(QDialog):
 
 # 共有建筑分摊所属设置视图类
 class CPHouseBelongseting(QWidget):
-    def __init__(self):
+    def __init__(self, controller):
         super().__init__()
-        self.available_units = ["单元1", "单元2", "单元3", "单元4", "单元5"]  # 示例可用单元
-        self.group_count = 0  # 分组计数器
-        self.allocation_areas = []  # 存储分摊所属控件的列表
-        self.initUI()  # 初始化用户界面
+        self.controller = controller
+        self.available_units = []
+        self.group_count = 0
+        self.allocation_areas = []
+        self.initUI()
 
     def initUI(self):
         # 创建主垂直布局
@@ -50,7 +51,7 @@ class CPHouseBelongseting(QWidget):
         add_allocation_button.clicked.connect(self.add_allocation_area)  # 连接按钮点击信号到添加分摊所属的方法
         add_allocation_button.setMaximumWidth(120)  # 设置按钮的最大宽度
         top_layout.addWidget(add_allocation_button)
-        top_layout.addStretch(1)  # 添加弹性空间，将按钮推到左边
+        top_layout.addStretch(1)  # 添加��空间，将钮推到左边
         
         self.main_layout.addLayout(top_layout)
 
@@ -74,7 +75,7 @@ class CPHouseBelongseting(QWidget):
             # 添加按钮布局
             buttons_layout = QHBoxLayout()
             load_data_button = QPushButton("加载数据")
-            load_data_button.clicked.connect(self.load_data)
+            load_data_button.clicked.connect(lambda: self.load_data(allocation_widget))
             load_data_button.setMaximumWidth(100)
             select_common_parts_button = QPushButton("选择分摊公共建筑部位")
             select_common_parts_button.setMaximumWidth(180)
@@ -112,6 +113,7 @@ class CPHouseBelongseting(QWidget):
             # 添加保存和删除按钮
             bottom_buttons_layout = QHBoxLayout()
             save_button = QPushButton("保存数据")
+            save_button.clicked.connect(lambda: self.save_data(allocation_widget))
             save_button.setMaximumWidth(100)
             delete_allocation_button = QPushButton("删除分摊所属")
             delete_allocation_button.setMaximumWidth(120)
@@ -137,7 +139,7 @@ class CPHouseBelongseting(QWidget):
 
     def add_group(self, parent_layout):
         # 弹出对话框获取新分组名称
-        group_name, ok = QInputDialog.getText(self, '添加分组', '请输入新分组名称:')
+        group_name, ok = QInputDialog.getText(self, '添加分组', '请输入新分组���称:')
         if ok and group_name:
             self.group_count += 1  # 增加分组计数
             group_widget = QGroupBox(f"{group_name}")
@@ -188,23 +190,58 @@ class CPHouseBelongseting(QWidget):
         group_widget.deleteLater()
         self.group_count -= 1  # 减少分组计数
 
-    # 加载数据（待实现）
-    def load_data(self):
-        # 这里添加加载数据的逻辑
-        print("加载数据")
+    def load_data(self, allocation_widget):
+        table_names = self.controller.get_table_names()
+        table_name, ok = QInputDialog.getItem(self, "选择数据表", "选择要加载的数据表:", table_names, 0, False)
+        
+        if ok and table_name:
+            data = self.controller.fetch_data_from_table(table_name)
+            self.available_units = data  # 存储完整的数据
+            display_units = [f"{row[1]} ({row[2]})" for row in data]  # 只用于显示
+            
+            for group in allocation_widget.findChildren(QGroupBox):
+                list_widget = group.findChild(QListWidget)
+                if list_widget:
+                    list_widget.clear()
+                    for i, unit in enumerate(display_units):
+                        item = QListWidgetItem(unit)
+                        item.setData(Qt.UserRole, data[i])  # 存储完整的数据
+                        list_widget.addItem(item)
 
-    # 添加参与分摊单元
+    def save_data(self, allocation_widget):
+        allocation_name = self.tab_widget.tabText(self.tab_widget.indexOf(allocation_widget))
+        data = []
+        
+        for group in allocation_widget.findChildren(QGroupBox):
+            group_name = group.title()
+            list_widget = group.findChild(QListWidget)
+            if list_widget:
+                for i in range(list_widget.count()):
+                    item = list_widget.item(i)
+                    unit_data = item.data(Qt.UserRole)
+                    data.append((group_name,) + unit_data)  # 添加组名和完整的单元数据
+        
+        # 调用控制器的保存方法，包含验证逻辑
+        success, message = self.controller.save_allocation_data(allocation_name, data, self.available_units)
+        
+        if success:
+            QMessageBox.information(self, "保存成功", message)
+        else:
+            QMessageBox.warning(self, "数据验证失败", message + "\n请修改数据后再次尝试保存。")
+
     def add_participating_unit(self, list_widget):
         # 弹出选择单元对话框
-        dialog = SelectUnitsDialog(self.available_units)
+        dialog = SelectUnitsDialog([f"{unit[1]} ({unit[2]})" for unit in self.available_units])
         if dialog.exec_():
             selected_units = dialog.get_selected_units()  # 获取选中的单元
             for unit in selected_units:
                 # 检查单元是否已存在于列表中
                 if list_widget.findItems(unit, Qt.MatchExactly) == []:
-                    list_widget.addItem(unit)  # 添加新单元到列表
+                    index = next(i for i, u in enumerate(self.available_units) if f"{u[1]} ({u[2]})" == unit)
+                    item = QListWidgetItem(unit)
+                    item.setData(Qt.UserRole, self.available_units[index])
+                    list_widget.addItem(item)  # 添加新单元到列表
 
-    # 删除参与分摊单元
     def delete_participating_unit(self, list_widget):
         current_item = list_widget.currentItem()  # 取当前选中的单元
         if current_item:
