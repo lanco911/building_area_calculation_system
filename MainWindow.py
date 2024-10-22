@@ -14,13 +14,14 @@ class MainWindow(QMainWindow):
     3. 共有建筑分摊所属设置
     """
 
-    def __init__(self):
+    def __init__(self, controller):
         """
         初始化主窗口
         
         设置窗口标题、大小，并创建包含三个标签页的界面。
         """
         super().__init__()
+        self.controller = controller
         
         # 设置窗口标题和初始大小
         self.setWindowTitle("房屋面积计算系统")
@@ -33,7 +34,7 @@ class MainWindow(QMainWindow):
         # 创建三个不同的视图实例
         self.housing_unit_1 = HousingUnit()
         self.common_property_house_2 = CommonPropertyHouse()
-        self.common_allocation_settings_3 = CPHouseBelongseting()
+        self.common_allocation_settings_3 = CPHouseBelongseting(self.controller)  # 传递controller
 
         # 将视图添加到标签页中
         self.tab_widget.addTab(self.housing_unit_1, "户单元套内面积")
