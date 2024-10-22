@@ -51,7 +51,7 @@ class CPHouseBelongseting(QWidget):
         add_allocation_button.clicked.connect(self.add_allocation_area)  # 连接按钮点击信号到添加分摊所属的方法
         add_allocation_button.setMaximumWidth(120)  # 设置按钮的最大宽度
         top_layout.addWidget(add_allocation_button)
-        top_layout.addStretch(1)  # 添加��空间，将钮推到左边
+        top_layout.addStretch(1)  # 添加弹性空间，将钮推到左边
         
         self.main_layout.addLayout(top_layout)
 
@@ -133,13 +133,33 @@ class CPHouseBelongseting(QWidget):
     def delete_allocation_area(self, index):
         if index != -1:
             allocation_widget = self.tab_widget.widget(index)
-            self.tab_widget.removeTab(index)
-            self.allocation_areas.remove(allocation_widget)
-            allocation_widget.deleteLater()
+            allocation_name = self.tab_widget.tabText(index)
+            
+            # 确认对话框
+            reply = QMessageBox.question(self, '确认删除', 
+                                         f"确定要删除分摊所属 '{allocation_name}' 及其相关数据吗？",
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            
+            if reply == QMessageBox.Yes:
+                # 删除数据库中的相关表
+                deleted_tables = self.controller.delete_allocation_area(allocation_name)
+                
+                # 从界面中删除
+                self.tab_widget.removeTab(index)
+                self.allocation_areas.remove(allocation_widget)
+                allocation_widget.deleteLater()
+                
+                # 显示删除结果
+                if deleted_tables:
+                    QMessageBox.information(self, "删除成功", 
+                                            f"已删除以下数据表：\n{', '.join(deleted_tables)}")
+                else:
+                    QMessageBox.information(self, "删除成功", 
+                                            "已删除分摊所属，但未找到相关数据表。")
 
     def add_group(self, parent_layout):
         # 弹出对话框获取新分组名称
-        group_name, ok = QInputDialog.getText(self, '添加分组', '请输入新分组���称:')
+        group_name, ok = QInputDialog.getText(self, '添加分组', '请输入新分组名称:')
         if ok and group_name:
             self.group_count += 1  # 增加分组计数
             group_widget = QGroupBox(f"{group_name}")

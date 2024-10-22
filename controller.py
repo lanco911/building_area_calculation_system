@@ -64,7 +64,7 @@ class BuildingAreaController:
         if self.model.save_data("户单元套内面积"):
             self.view.show_message("保存成功", "户单元数据已成功保存，并更新了幢总建筑面积表")
         else:
-            self.view.show_message("保存失败", "保存户单元数据时出错")
+            self.view.show_message("保存失败", "保存户单元��据时出错")
 
     def save_common_property_data(self):
         """
@@ -124,5 +124,10 @@ class BuildingAreaController:
         if not is_valid:
             return False, message
         
-        table_name = self.model.save_allocation_data(allocation_name, data_to_save)
-        return True, f"数据已成功保存到表 {table_name}"
+        created_tables = self.model.save_allocation_data(allocation_name, data_to_save)
+        return True, f"数据已成功保存到以下表: {', '.join(created_tables)}"
+
+    def delete_allocation_area(self, allocation_name):
+        """删除分摊所属及其相关数据表"""
+        deleted_tables = self.model.delete_allocation_tables(allocation_name)
+        return deleted_tables

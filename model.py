@@ -142,10 +142,37 @@ class BuildingAreaModel:
         return self.cursor.fetchall()
 
     def save_allocation_data(self, allocation_name, data):
-        """保存分配数据到新表"""
-        table_name = f"分摊所属_{allocation_name}"
-        self.cursor.execute(f"CREATE TABLE IF NOT EXISTS '{table_name}' (group_name TEXT, ID TEXT, 房号 TEXT, 套内面积 TEXT)")
-        self.cursor.execute(f"DELETE FROM '{table_name}'")
-        self.cursor.executemany(f"INSERT INTO '{table_name}' (group_name, ID, 房号, 套内面积) VALUES (?, ?, ?, ?)", data)
+        """保存分配数据到多个表"""
+        base_table_name = f"分摊所属_{allocation_name}"
+        
+        # 按 group_name 分组数据
+        grouped_data = {}
+        for item in data:
+            group_name, id, room, area = item
+            if group_name not in grouped_data:
+                grouped_data[group_name] = []
+            grouped_data[group_name].append((id, room, area))
+
+        # 为每个组创建一个表并保存数据
+        created_tables = []
+        for group_name, group_data in grouped_data.items():
+            table_name = f"{base_table_name}_{group_name}"
+            self.cursor.execute(f"CREATE TABLE IF NOT EXISTS '{table_name}' (ID TEXT, 房号 TEXT, 套内面积 TEXT)")
+            self.cursor.execute(f"DELETE FROM '{table_name}'")
+            self.cursor.executemany(f"INSERT INTO '{table_name}' (ID, 房号, 套内面积) VALUES (?, ?, ?)", group_data)
+            created_tables.append(table_name)
+
         self.conn.commit()
-        return table_name
+        return created_tables
+
+    def delete_allocation_tables(self, allocation_name):
+        """删除与指定分摊所属相关的所有数据表"""
+        base_table_name = f"分摊所属_{allocation_name}"
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", (f"{base_table_name}%",))
+        tables_to_delete = self.cursor.fetchall()
+        
+        for (table_name,) in tables_to_delete:
+            self.cursor.execute(f"DROP TABLE IF EXISTS '{table_name}'")
+        
+        self.conn.commit()
+        return [table[0] for table in tables_to_delete]
