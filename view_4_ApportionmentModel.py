@@ -1,6 +1,65 @@
 import sys
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QApplication, QInputDialog, QHBoxLayout, QLabel, QComboBox, QScrollArea, QGroupBox, QLineEdit
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QApplication, 
+                             QInputDialog, QHBoxLayout, QLabel, QComboBox, 
+                             QScrollArea, QGroupBox, QLineEdit, QStyledItemDelegate)
+from PyQt5.QtCore import Qt, QEvent
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFontMetrics
+
+class CheckableComboBox(QComboBox):
+    # 自定义的可勾选ComboBox类
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.view().pressed.connect(self.handle_item_pressed)
+        self.setModel(QStandardItemModel(self))
+        self.setEditable(True)  # 设置为可编辑
+        self.lineEdit().setReadOnly(True)  # 设置为只读，防止用户编辑
+        self.setItemDelegate(QStyledItemDelegate())
+        self.closeOnSelect = False
+
+    def handle_item_pressed(self, index):
+        item = self.model().itemFromIndex(index)
+        if item.checkState() == Qt.Checked:
+            item.setCheckState(Qt.Unchecked)
+        else:
+            item.setCheckState(Qt.Checked)
+        self.check_items()
+
+    def check_items(self):
+        checkedItems = []
+        for i in range(self.model().rowCount()):
+            if self.model().item(i).checkState() == Qt.Checked:
+                checkedItems.append(self.model().item(i).text())
+        text = ", ".join(checkedItems)
+        if self.lineEdit():
+            metrics = QFontMetrics(self.lineEdit().font())
+            elidedText = metrics.elidedText(text, Qt.ElideRight, self.lineEdit().width())
+            self.lineEdit().setText(elidedText)
+
+    def addItem(self, text, data=None):
+        item = QStandardItem()
+        item.setText(text)
+        if data is None:
+            item.setData(text)
+        else:
+            item.setData(data)
+        item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
+        item.setData(Qt.Unchecked, Qt.CheckStateRole)
+        self.model().appendRow(item)
+
+    def addItems(self, texts, datalist=None):
+        for i, text in enumerate(texts):
+            try:
+                data = datalist[i]
+            except (TypeError, IndexError):
+                data = None
+            self.addItem(text, data)
+
+    def currentData(self):
+        res = []
+        for i in range(self.model().rowCount()):
+            if self.model().item(i).checkState() == Qt.Checked:
+                res.append(self.model().item(i).data())
+        return res
 
 class ApportionmentModelView(QWidget):
     def __init__(self):
@@ -38,23 +97,20 @@ class ApportionmentModelView(QWidget):
         self.setGeometry(300, 300, 1000, 600)  # 设置窗口大小
 
     def add_new_model(self):
-        # 创建自定义的 QInputDialog
+        # 创建自定义的 QInputDialog，但改为使用组合框
         dialog = QInputDialog(self)
-        dialog.setInputMode(QInputDialog.TextInput)
+        dialog.setOption(QInputDialog.UseListViewForComboBoxItems)
+        dialog.setComboBoxEditable(False)
         dialog.setWindowTitle('添加新模型')
-        dialog.setLabelText('请输入新分摊模型名称:')
+        dialog.setLabelText('请选择新分摊模型类型:')
+        dialog.setComboBoxItems(["幢", "区间", "商业","住宅"])  # 根据分摊所属的预设生成分摊类型，供选择
         dialog.resize(300, 250)  # 设置对话框的大小
-        
-        # 获取对话框中的文本输入框
-        line_edit = dialog.findChild(QLineEdit)
-        if line_edit:
-            line_edit.setMinimumHeight(30)  # 设置输入框的最小高度
         
         # 显示对话框并获取结果
         ok = dialog.exec_()
-        model_name = dialog.textValue()
+        model_type = dialog.textValue()
 
-        if ok and model_name:
+        if ok and model_type:
             # 创建新的模型控件
             model_widget = QGroupBox()
             model_layout = QVBoxLayout(model_widget)
@@ -65,7 +121,7 @@ class ApportionmentModelView(QWidget):
             name_layout.setContentsMargins(0, 5, 0, 0)  # 设置上边距为5像素
 
             # 添加模型名称标签
-            name_label = QLabel(f"{model_name} - 分摊")
+            name_label = QLabel(f"{model_type} - 分摊") 
             name_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # 设置标签左对齐和垂直居中
             name_label.setStyleSheet("font-weight: bold; font-size: 20px;")  # 设置字体加粗并增大字体大小
             name_label.setFixedHeight(30)  # 设置固定高度以适应更大的字体
@@ -84,7 +140,7 @@ class ApportionmentModelView(QWidget):
             label = QLabel("应分摊共有建筑部位")
             label.setFixedHeight(20)  # 设置标签的固定高度为20像素
             model_layout.addWidget(label)
-            c_combo = QComboBox()
+            c_combo = CheckableComboBox()
             c_combo.setFixedHeight(30)  # 将QComboBox的高度设置为25像素，略高于之前的默认值
             c_combo.addItem("选择数据...")
             model_layout.addWidget(c_combo)
@@ -93,7 +149,7 @@ class ApportionmentModelView(QWidget):
             label = QLabel("参与分摊单元")
             label.setFixedHeight(20)  # 将标签高度设置为20像素
             model_layout.addWidget(label)
-            h_combo = QComboBox()
+            h_combo = CheckableComboBox()
             h_combo.setFixedHeight(30)  # 将QComboBox的高度设置为30像素
             h_combo.addItem("选择数据...")
             model_layout.addWidget(h_combo)
@@ -132,8 +188,8 @@ class ApportionmentModelView(QWidget):
             # 设置固定宽度和高度以确保横向排列时的一致性
             model_widget.setFixedSize(250, 450)  # 调整大小使其更紧凑
 
-            # 将新模型添加到滚动区域
-            self.scroll_layout.addWidget(model_widget)
+            # 将新模型添加到滚动区域，并设置在顶端左对齐
+            self.scroll_layout.addWidget(model_widget, 0, Qt.AlignTop | Qt.AlignLeft)
             self.models.append(model_widget)
 
     def delete_model(self, model_widget):
