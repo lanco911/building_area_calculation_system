@@ -128,7 +128,7 @@ class BuildingAreaController:
         return True, f"数据已成功保存到以下表: {', '.join(created_tables)}"
 
     def delete_allocation_area(self, allocation_name):
-        """删除分摊所属及其相关数据表"""
+        """删除分摊属及其相关数据表"""
         deleted_tables = self.model.delete_allocation_tables(allocation_name)
         return deleted_tables
 
@@ -160,3 +160,18 @@ class BuildingAreaController:
             return coefficient, None
         except Exception as e:
             return 0, str(e)
+
+    def delete_apportionment_model(self, model_name):
+        """删除分摊模型及其相关数据"""
+        try:
+            deleted_columns = self.model.delete_apportionment_model_data(model_name)
+            if deleted_columns:
+                return True, f"已成功删除模型 '{model_name}' 及其相关数据列：{', '.join(deleted_columns)}"
+            else:
+                return False, f"未找到与模型 '{model_name}' 相关的数据"
+        except Exception as e:
+            return False, f"删除模型时出错：{str(e)}"
+
+    def get_calculated_coefficients(self):
+        """获取已计算的分摊系数"""
+        return self.model.get_calculated_coefficients()

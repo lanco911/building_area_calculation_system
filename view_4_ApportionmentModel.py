@@ -188,15 +188,20 @@ class ApportionmentModelView(QWidget):
             h_combo.addItem("选择数据...")
             model_layout.addWidget(h_combo)
 
-            # 添加上一级分摊系数输入
+            # 修改：将上一级分摊系数输入框改为选择框
             label = QLabel("上一级分摊系数")
             label.setFixedHeight(20)
             model_layout.addWidget(label)
-            input_field = QLineEdit()
-            input_field.setObjectName("input_field")  # 添加这行
-            input_field.setFixedHeight(30)
-            input_field.setPlaceholderText("请输入分摊系数")
-            model_layout.addWidget(input_field)
+            upper_coefficient_combo = QComboBox()
+            upper_coefficient_combo.setObjectName("upper_coefficient_combo")
+            upper_coefficient_combo.setFixedHeight(30)
+            upper_coefficient_combo.setMinimumWidth(200)
+            upper_coefficient_combo.addItem("无上级分摊系数", None)
+            # 获取已计算的分摊系数
+            calculated_coefficients = self.controller.get_calculated_coefficients()
+            for coeff in calculated_coefficients:
+                upper_coefficient_combo.addItem(f"{coeff[0]}: {coeff[1]}", coeff[1])
+            model_layout.addWidget(upper_coefficient_combo)
 
             # 添加计算分摊系数按钮
             calc_button = QPushButton("计算分摊系数")
@@ -235,10 +240,27 @@ class ApportionmentModelView(QWidget):
             self.update_combobox_data(h_combo, allocation_tables)
 
     def delete_model(self, model_widget):
-        # 从布局中移除并删除指定的模型控件
-        self.scroll_layout.removeWidget(model_widget)
-        self.models.remove(model_widget)
-        model_widget.deleteLater()
+        # 获取模型名称
+        name_label = model_widget.findChildren(QLabel)[0]
+        model_name = name_label.text().split(' - ')[0]
+
+        # 确认对话框
+        reply = QMessageBox.question(self, '确认删除', 
+                                     f"确定要删除模型 '{model_name}' 及其相关数据吗？",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        
+        if reply == QMessageBox.Yes:
+            # 调用控制器方法删除模型数据
+            success, message = self.controller.delete_apportionment_model(model_name)
+            
+            if success:
+                # 从布局中移除并删除指定的模型控件
+                self.scroll_layout.removeWidget(model_widget)
+                self.models.remove(model_widget)
+                model_widget.deleteLater()
+                QMessageBox.information(self, "删除成功", message)
+            else:
+                QMessageBox.warning(self, "删除失败", message)
 
     def update_combobox_data(self, combobox, tables):
         combobox.clear()
@@ -257,11 +279,11 @@ class ApportionmentModelView(QWidget):
         # 获取所需的数据
         c_combo = model_widget.findChild(CheckableComboBox, "c_combo")
         h_combo = model_widget.findChild(CheckableComboBox, "h_combo")
-        input_field = model_widget.findChild(QLineEdit, "input_field")
+        upper_coefficient_combo = model_widget.findChild(QComboBox, "upper_coefficient_combo")
         result_display = model_widget.findChild(QLineEdit, "result_display")
         name_label = model_widget.findChildren(QLabel)[0]  # 获取第一个QLabel，假设它是名称标签
 
-        if not all([c_combo, h_combo, input_field, result_display, name_label]):
+        if not all([c_combo, h_combo, upper_coefficient_combo, result_display, name_label]):
             QMessageBox.warning(self, "错误", "无法找到所有必要的控件")
             return
 
@@ -269,11 +291,12 @@ class ApportionmentModelView(QWidget):
         c_tables = c_combo.currentData()
         h_tables = h_combo.currentData()
         
-        try:
-            upper_coefficient = float(input_field.text() or 0)
-        except ValueError:
-            QMessageBox.warning(self, "错误", "请输入有效的上一级分摊系数")
-            return
+        # 获取选中的上级分摊系数
+        upper_coefficient = upper_coefficient_combo.currentData()
+        if upper_coefficient is None:
+            upper_coefficient = 0
+        else:
+            upper_coefficient = float(upper_coefficient)
 
         # 获取模型类型
         model_type = name_label.text().split(' - ')[0]

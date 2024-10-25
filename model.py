@@ -255,3 +255,55 @@ class BuildingAreaModel:
                                         (row[0], row[1], row[2], formatted_coefficient, formatted_apportioned_area))
 
         self.conn.commit()
+
+    def delete_apportionment_model_data(self, model_name):
+        """删除与指定分摊模型相关的数据列"""
+        try:
+            # 获取"分摊面积"表的列信息
+            self.cursor.execute("PRAGMA table_info('分摊面积')")
+            columns = [row[1] for row in self.cursor.fetchall()]
+
+            # 找到与模型相关的列
+            coefficient_column = f"{model_name}_分摊系数"
+            area_column = f"{model_name}_分摊公共面积"
+            columns_to_delete = []
+
+            if coefficient_column in columns:
+                columns_to_delete.append(coefficient_column)
+            if area_column in columns:
+                columns_to_delete.append(area_column)
+
+            if columns_to_delete:
+                # 创建新表，不包含要删除的列
+                new_columns = [col for col in columns if col not in columns_to_delete]
+                new_columns_str = ', '.join(new_columns)
+                self.cursor.execute(f"CREATE TABLE temp_分摊面积 AS SELECT {new_columns_str} FROM '分摊面积'")
+
+                # 删除旧表，重命名新表
+                self.cursor.execute("DROP TABLE '分摊面积'")
+                self.cursor.execute("ALTER TABLE temp_分摊面积 RENAME TO '分摊面积'")
+
+                self.conn.commit()
+                return columns_to_delete
+            else:
+                return []
+        except Exception as e:
+            print(f"删除分摊模型数据时出错：{str(e)}")
+            self.conn.rollback()
+            raise
+
+    def get_calculated_coefficients(self):
+        """获取已计算的分摊系数"""
+        self.cursor.execute("PRAGMA table_info('分摊面积')")
+        columns = [row[1] for row in self.cursor.fetchall()]
+        coefficient_columns = [col for col in columns if col.endswith('_分摊系数')]
+        
+        coefficients = []
+        for col in coefficient_columns:
+            model_name = col.replace('_分摊系数', '')
+            self.cursor.execute(f"SELECT DISTINCT {col} FROM '分摊面积' WHERE {col} IS NOT NULL")
+            result = self.cursor.fetchone()
+            if result:
+                coefficients.append((model_name, result[0]))
+        
+        return coefficients
