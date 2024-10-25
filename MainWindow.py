@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QMessageBox
 from view_1_HousingUnit import HousingUnit
 from view_2_CommonPropertyHouse import CommonPropertyHouse
 from view_3_CPHouseBelongseting import CPHouseBelongseting
+from view_4_ApportionmentModel import ApportionmentModelView
 
 
 
@@ -10,17 +11,18 @@ class MainWindow(QMainWindow):
     """
     主窗口类
     
-    创建应用程序的主界面，包含三个标签页：
+    创建应用程序的主界面，包含四个标签页：
     1. 户单元套内面积
     2. 共有建筑面积
     3. 共有建筑分摊所属设置
+    4. 共有建筑面积分配模型设置
     """
 
     def __init__(self, controller):
         """
         初始化主窗口
         
-        设置窗口标题、大小，并创建包含三个标签页的界面。
+        设置窗口标题、大小，并创建包含四个标签页的界面。
         """
         super().__init__()
         self.controller = controller
@@ -33,15 +35,17 @@ class MainWindow(QMainWindow):
         self.tab_widget = QTabWidget()
         self.setCentralWidget(self.tab_widget)
 
-        # 创建三个不同的视图实例
+        # 创建四个不同的视图实例
         self.housing_unit_1 = HousingUnit()
         self.common_property_house_2 = CommonPropertyHouse()
-        self.common_allocation_settings_3 = CPHouseBelongseting(self.controller)  # 传递controller
+        self.common_allocation_settings_3 = CPHouseBelongseting(self.controller)
+        self.apportionment_model_4 = ApportionmentModelView(self.controller)
 
         # 将视图添加到标签页中
         self.tab_widget.addTab(self.housing_unit_1, "户单元套内面积")
         self.tab_widget.addTab(self.common_property_house_2, "共有建筑面积")
         self.tab_widget.addTab(self.common_allocation_settings_3, "共有建筑分摊所属设置")
+        self.tab_widget.addTab(self.apportionment_model_4, "共有建筑面积分配模型设置")
 
     def show_message(self, title, message):
         """
@@ -58,7 +62,7 @@ if __name__ == '__main__':
     
     创建QApplication实例，显示主窗口，并启动事件循环。
     """
-        # 添加一个模拟的 Controller 类
+    # 添加一个模拟的 Controller 类
     class MockController:
         def __init__(self):
             pass
@@ -77,6 +81,7 @@ if __name__ == '__main__':
         def delete_allocation_area(self, allocation_name):
             print(f"删除分摊所属：{allocation_name}")
             return ["表1", "表2"]
+
     # 创建应用程序实例
     app = QApplication(sys.argv)
     

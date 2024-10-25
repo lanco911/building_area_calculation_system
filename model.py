@@ -1,6 +1,7 @@
 import pandas as pd
 from PyQt5.QtWidgets import QFileDialog
 import sqlite3
+import re
 
 class BuildingAreaModel:
     """
@@ -35,6 +36,9 @@ class BuildingAreaModel:
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS "幢总建筑面积" 
                                (ID TEXT, 实际楼层 TEXT, 房号 TEXT, 主间面积 TEXT, 
                                 阳台面积 TEXT, 套内面积 TEXT, 用途 TEXT)''')
+        
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊面积" 
+                               (ID TEXT PRIMARY KEY, 房号 TEXT, 套内面积 TEXT)''')
         
         self.conn.commit()
 
@@ -176,3 +180,78 @@ class BuildingAreaModel:
         
         self.conn.commit()
         return [table[0] for table in tables_to_delete]
+
+    def get_allocation_options(self):
+        """获取分摊所属选项"""
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '分摊所属_%'")
+        tables = self.cursor.fetchall()
+        
+        options = set()
+        for (table,) in tables:
+            match = re.match(r'分摊所属_(.+?)_', table)
+            if match:
+                options.add(match.group(1))
+        
+        return list(options)
+
+    def get_allocation_tables(self, option):
+        """获取指定分摊所属选项的相关数据表"""
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", (f'分摊所属_{option}_%',))
+        tables = self.cursor.fetchall()
+        return [table[0] for table in tables]
+
+    def get_total_area(self, tables):
+        total_area = 0
+        for table in tables:
+            self.cursor.execute(f"SELECT SUM(CAST(套内面积 AS FLOAT)) FROM '{table}'")
+            result = self.cursor.fetchone()
+            if result[0]:
+                total_area += result[0]
+        return total_area
+
+    def save_apportionment_coefficient(self, tables, coefficient, model_type):
+        # 创建或更新"分摊面积"表
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊面积" 
+                               (ID TEXT PRIMARY KEY, 房号 TEXT, 套内面积 TEXT)''')
+
+        # 添加新的分摊系数列和分摊公共面积列（如果不存在）
+        coefficient_column = f"{model_type}_分摊系数"
+        area_column = f"{model_type}_分摊公共面积"
+        self.cursor.execute(f"PRAGMA table_info('分摊面积')")
+        columns = [row[1] for row in self.cursor.fetchall()]
+        if coefficient_column not in columns:
+            self.cursor.execute(f"ALTER TABLE '分摊面积' ADD COLUMN '{coefficient_column}' TEXT")
+        if area_column not in columns:
+            self.cursor.execute(f"ALTER TABLE '分摊面积' ADD COLUMN '{area_column}' TEXT")
+
+        # 将系数格式化为保留6位小数的字符串
+        formatted_coefficient = f"{coefficient:.6f}"
+
+        # 更新或插入数据
+        for table in tables:
+            self.cursor.execute(f"SELECT ID, 房号, 套内面积 FROM '{table}'")
+            rows = self.cursor.fetchall()
+            for row in rows:
+                # 计算分摊公共面积
+                inner_area = float(row[2])
+                apportioned_area = inner_area * coefficient
+                formatted_apportioned_area = f"{apportioned_area:.2f}"  # 修改为保留2位小数
+
+                # 检查是否已存在该 ID 的记录
+                self.cursor.execute("SELECT * FROM '分摊面积' WHERE ID = ?", (row[0],))
+                existing_record = self.cursor.fetchone()
+                
+                if existing_record:
+                    # 如果记录已存在，更新它
+                    self.cursor.execute(f'''UPDATE "分摊面积" 
+                                            SET 房号 = ?, 套内面积 = ?, '{coefficient_column}' = ?, '{area_column}' = ?
+                                            WHERE ID = ?''', 
+                                        (row[1], row[2], formatted_coefficient, formatted_apportioned_area, row[0]))
+                else:
+                    # 如果记录不存在，插入新记录
+                    self.cursor.execute(f'''INSERT INTO "分摊面积" 
+                                            (ID, 房号, 套内面积, '{coefficient_column}', '{area_column}')
+                                            VALUES (?, ?, ?, ?, ?)''', 
+                                        (row[0], row[1], row[2], formatted_coefficient, formatted_apportioned_area))
+
+        self.conn.commit()

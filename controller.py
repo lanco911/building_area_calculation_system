@@ -64,7 +64,7 @@ class BuildingAreaController:
         if self.model.save_data("户单元套内面积"):
             self.view.show_message("保存成功", "户单元数据已成功保存，并更新了幢总建筑面积表")
         else:
-            self.view.show_message("保存失败", "保存户单元��据时出错")
+            self.view.show_message("保存失败", "保存户单元数据时出错")
 
     def save_common_property_data(self):
         """
@@ -131,3 +131,32 @@ class BuildingAreaController:
         """删除分摊所属及其相关数据表"""
         deleted_tables = self.model.delete_allocation_tables(allocation_name)
         return deleted_tables
+
+    def get_allocation_options(self):
+        """获取分摊所属选项"""
+        return self.model.get_allocation_options()
+
+    def get_allocation_tables(self, option):
+        """获取指定分摊所属选项的相关数据表"""
+        return self.model.get_allocation_tables(option)
+
+    def calculate_apportionment_coefficient(self, c_tables, h_tables, upper_coefficient, model_type):
+        try:
+            # 获取共有建筑部分的总面积
+            c_total_area = self.model.get_total_area(c_tables)
+            
+            # 获取参与分摊单元的总面积
+            h_total_area = self.model.get_total_area(h_tables)
+            
+            if h_total_area == 0:
+                return 0, "参与分摊单元的总面积为0，无法计算分摊系数"
+
+            # 计算分摊系数并保留6位小数
+            coefficient = round((c_total_area + c_total_area * upper_coefficient) / h_total_area, 6)
+
+            # 保存分摊系数和分摊公共面积到数据库
+            self.model.save_apportionment_coefficient(h_tables, coefficient, model_type)
+
+            return coefficient, None
+        except Exception as e:
+            return 0, str(e)
