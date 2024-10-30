@@ -40,6 +40,15 @@ class BuildingAreaModel:
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊面积" 
                                (ID TEXT PRIMARY KEY, 房号 TEXT, 套内面积 TEXT)''')
         
+        # 添加分摊模型关系表
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊模型关系" (
+            model_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model_name TEXT NOT NULL,
+            parent_id INTEGER,
+            order_index INTEGER NOT NULL,
+            FOREIGN KEY (parent_id) REFERENCES "分摊模型关系" (model_id)
+        )''')
+        
         self.conn.commit()
 
     def import_data(self):
@@ -227,7 +236,7 @@ class BuildingAreaModel:
         # 将系数格式化为保留6位小数的字符串
         formatted_coefficient = f"{coefficient:.6f}"
 
-        # 更新或插入数据
+        # 更新或插入数���
         for table in tables:
             self.cursor.execute(f"SELECT ID, 房号, 套内面积 FROM '{table}'")
             rows = self.cursor.fetchall()
@@ -267,7 +276,7 @@ class BuildingAreaModel:
             coefficient_column = f"{model_name}_分摊系数"
             area_column = f"{model_name}_分摊公共面积"
             columns_to_delete = []
-
+            # 如果列存在，则添加到要删除的列列表中
             if coefficient_column in columns:
                 columns_to_delete.append(coefficient_column)
             if area_column in columns:
@@ -307,3 +316,68 @@ class BuildingAreaModel:
                 coefficients.append((model_name, result[0]))
         
         return coefficients
+
+    def save_apportionment_model(self, model_name, parent_model_name=None):
+        """保存分摊模型及其层级关系"""
+        try:
+            # 获取父模型ID
+            parent_id = None
+            if parent_model_name:
+                self.cursor.execute("SELECT model_id FROM '分摊模型关系' WHERE model_name = ?", 
+                                  (parent_model_name,))
+                result = self.cursor.fetchone()
+                if result:
+                    parent_id = result[0]
+            
+            # 获取当前最大的order_index
+            self.cursor.execute("""
+                SELECT COALESCE(MAX(order_index), 0) 
+                FROM '分摊模型关系' 
+                WHERE parent_id IS ? OR (parent_id IS NULL AND ? IS NULL)
+            """, (parent_id, parent_id))
+            max_order = self.cursor.fetchone()[0]
+            
+            # 插入新模型
+            self.cursor.execute("""
+                INSERT INTO '分摊模型关系' (model_name, parent_id, order_index)
+                VALUES (?, ?, ?)
+            """, (model_name, parent_id, max_order + 1))
+            
+            self.conn.commit()
+            return True, "分摊模型保存成功"
+        except Exception as e:
+            return False, f"保存分摊模型失败: {str(e)}"
+
+    def get_model_hierarchy(self):
+        """获取分摊模型的层级结构"""
+        self.cursor.execute("""
+            WITH RECURSIVE model_tree AS (
+                -- 基础查询：获取顶级模型
+                SELECT 
+                    model_id, 
+                    model_name, 
+                    parent_id, 
+                    order_index,
+                    0 as level,
+                    CAST(order_index AS TEXT) as path
+                FROM '分摊模型关系'
+                WHERE parent_id IS NULL
+                
+                UNION ALL
+                
+                -- 递归查询：获取子模型
+                SELECT 
+                    t.model_id, 
+                    t.model_name, 
+                    t.parent_id, 
+                    t.order_index,
+                    mt.level + 1,
+                    mt.path || '.' || CAST(t.order_index AS TEXT)
+                FROM '分摊模型关系' t
+                JOIN model_tree mt ON t.parent_id = mt.model_id
+            )
+            SELECT model_id, model_name, parent_id, level, path
+            FROM model_tree
+            ORDER BY path;
+        """)
+        return self.cursor.fetchall()

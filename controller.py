@@ -64,7 +64,7 @@ class BuildingAreaController:
         if self.model.save_data("户单元套内面积"):
             self.view.show_message("保存成功", "户单元数据已成功保存，并更新了幢总建筑面积表")
         else:
-            self.view.show_message("保存失败", "保存户单元数据时出错")
+            self.view.show_message("保存失败", "保存户单元��据时出错")
 
     def save_common_property_data(self):
         """
@@ -175,3 +175,32 @@ class BuildingAreaController:
     def get_calculated_coefficients(self):
         """获取已计算的分摊系数"""
         return self.model.get_calculated_coefficients()
+
+    def save_apportionment_model(self, model_name, parent_model_name=None):
+        """保存分摊模型及其层级关系"""
+        return self.model.save_apportionment_model(model_name, parent_model_name)
+
+    def get_model_hierarchy(self):
+        """获取分摊模型的层级结构"""
+        return self.model.get_model_hierarchy()
+
+    def get_available_parent_models(self, current_model=None):
+        """获取可用的上级分摊模型"""
+        hierarchy = self.model.get_model_hierarchy()
+        
+        # 过滤掉当前模型及其子模型
+        available_models = []
+        if current_model:
+            # 构建模型的层级路径
+            model_paths = {model[0]: model[4] for model in hierarchy}
+            current_path = next((model[4] for model in hierarchy 
+                               if model[1] == current_model), None)
+            
+            if current_path:
+                # 只返回路径值小于当前模型的模型
+                available_models = [model for model in hierarchy 
+                                  if model[4] < current_path]
+        else:
+            available_models = hierarchy
+            
+        return [(model[1], model[4]) for model in available_models]
