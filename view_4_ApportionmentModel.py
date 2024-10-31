@@ -1,10 +1,4 @@
-import sys
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QApplication, 
-                             QInputDialog, QHBoxLayout, QLabel, QComboBox, 
-                             QScrollArea, QGroupBox, QLineEdit, QStyledItemDelegate,
-                             QMessageBox, QListWidget, QListWidgetItem, QDialog, QDialogButtonBox)
-from PyQt5.QtCore import Qt, QEvent
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFontMetrics
+# -*- coding: utf-8 -*-
 
 """
 这是一个用于建筑面积分摊模型的视图模块。主要功能包括：
@@ -18,6 +12,14 @@ from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFontMetrics
 - ApportionmentModelView: 分摊模型的主视图界面
 """
 
+import sys
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QApplication, 
+                             QInputDialog, QHBoxLayout, QLabel, QComboBox, 
+                             QScrollArea, QGroupBox, QLineEdit, QStyledItemDelegate,
+                             QMessageBox, QListWidget, QListWidgetItem, QDialog, QDialogButtonBox)
+from PyQt5.QtCore import Qt, QEvent
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFontMetrics
+
 class CheckableComboBox(QComboBox):
     """
     自定义的可多选下拉框组件
@@ -28,10 +30,10 @@ class CheckableComboBox(QComboBox):
     
     特点：
     - 支持多选功能
-    - 显示已选项的文本列表
+    - 显示已选项的文本���表
     - 保持选择状态
     """
-    # 自定义的可勾选ComboBox类
+    # 自定义的可勾选ComboBox
     def __init__(self, *args, **kwargs):
         """
         初始化可多选下拉框
@@ -64,7 +66,7 @@ class CheckableComboBox(QComboBox):
                 checkedItems.append(self.model().item(i).text())
         text = ", ".join(checkedItems)
         if self.lineEdit():
-            self.lineEdit().setText(text)  # 直接设置文本，不使用 elidedText
+            self.lineEdit().setText(text)  # 直���设置文本，不使用 elidedText
 
     def addItem(self, text, data=None):
         item = QStandardItem()
@@ -119,7 +121,7 @@ class ApportionmentModelView(QWidget):
         self.setLayout(self.main_layout)
 
         # 添加模型按钮
-        add_button = QPushButton("✚ 添加分摊模型")
+        add_button = QPushButton("添加分摊模型")
         add_button.clicked.connect(self.add_new_model)
         add_button.setFixedSize(140, 40) # 设置按钮的最大宽度
 
@@ -134,8 +136,8 @@ class ApportionmentModelView(QWidget):
         self.scroll_layout = QHBoxLayout(self.scroll_content) # 创建滚动布局
         self.scroll_layout.setAlignment(Qt.AlignLeft)  # 设置左对齐
         self.scroll_layout.setSpacing(10)  # 模型之间的间距
-        self.scroll_area.setWidget(self.scroll_content) # 设置滚动区域的内容
-        self.main_layout.addWidget(self.scroll_area) # 将滚动区域添加到主布局中
+        self.scroll_area.setWidget(self.scroll_content) # 设置滚动��域的内容
+        self.main_layout.addWidget(self.scroll_area) # 将滚动区域添加到主布局
 
         # 创建底部按钮布局
         bottom_layout = QHBoxLayout()
@@ -166,7 +168,7 @@ class ApportionmentModelView(QWidget):
         allocation_options = self.controller.get_allocation_options()
         
         if not allocation_options:
-            QMessageBox.warning(self, "警告", "没有可用的分摊所属选项")
+            QMessageBox.warning(self, "警告", "没���可用的分摊所属选项")
             return
 
         # 创建对话框
@@ -182,7 +184,7 @@ class ApportionmentModelView(QWidget):
         layout.addWidget(type_combo)
         
         # 添加上级模型选择
-        parent_label = QLabel("选择上级分摊模型(可选):")
+        parent_label = QLabel("选择上级分摊模型(可空):")
         parent_combo = QComboBox()
         parent_combo.addItem("无上级模型", None)
         available_parents = self.controller.get_available_parent_models()
@@ -279,27 +281,13 @@ class ApportionmentModelView(QWidget):
         QMessageBox.information(self, "保存", "保存功能待实现")
 
     def calculate_apportionment_coefficient(self, model_widget):
-        """
-        计算分摊系数
-        
-        功能：
-        1. 收集当前模型的所有必要数据
-        2. 调用控制器进行计算
-        3. 显示计算结果和更新说明
-        
-        使用场景：
-        - 用户点击"计算分摊系数"按钮时调用
-        - 需要重新计算分摊系数时使用
-        
-        参数：
-        model_widget: 当前操作的模型控件
-        """
-        # 获取所需的数据
+        """计算分摊系数并保存应分摊公共面积"""
+        # 获取所需的控件
         c_combo = model_widget.findChild(CheckableComboBox, "c_combo")
         h_combo = model_widget.findChild(CheckableComboBox, "h_combo")
         upper_coefficient_combo = model_widget.findChild(QComboBox, "upper_coefficient_combo")
         result_display = model_widget.findChild(QLineEdit, "result_display")
-        name_label = model_widget.findChildren(QLabel)[0]  # 获取第一个QLabel，假设它是名称标签
+        name_label = model_widget.findChildren(QLabel)[0]
 
         if not all([c_combo, h_combo, upper_coefficient_combo, result_display, name_label]):
             QMessageBox.warning(self, "错误", "无法找到所有必要的控件")
@@ -309,7 +297,7 @@ class ApportionmentModelView(QWidget):
         c_tables = c_combo.currentData()
         h_tables = h_combo.currentData()
         
-        # 获取选中的上级分摊系数
+        # 获取上级分摊系数
         upper_coefficient = upper_coefficient_combo.currentData()
         if upper_coefficient is None:
             upper_coefficient = 0
@@ -323,7 +311,16 @@ class ApportionmentModelView(QWidget):
             QMessageBox.warning(self, "警告", "请选择应分摊共有建筑部位和参与分摊单元")
             return
 
-        # 调用控制器方法计算分摊系数
+        # 首先计算并保存应分摊公共面积
+        success, error = self.controller.calculate_and_save_apportionable_area(
+            c_tables, upper_coefficient, model_type
+        )
+        
+        if not success:
+            QMessageBox.warning(self, "错误", error)
+            return
+
+        # 然后计算分摊系数
         coefficient, error = self.controller.calculate_apportionment_coefficient(
             c_tables, h_tables, upper_coefficient, model_type
         )
@@ -331,7 +328,7 @@ class ApportionmentModelView(QWidget):
         if error:
             QMessageBox.warning(self, "错误", error)
         else:
-            # 显示计算结果，保留6位小数
+            # 显示计算结果
             result_display.setText(f"{coefficient:.6f}")
 
             # 更新分摊说明
@@ -343,7 +340,7 @@ class ApportionmentModelView(QWidget):
         """
         创建新的分摊模型控件
         
-        参数:
+        参数：
             selected_type (str): 选择的分摊模型类型
             parent_model (str): 上级分摊模型名称，如果没有则为None
         """
@@ -351,7 +348,7 @@ class ApportionmentModelView(QWidget):
         allocation_tables = self.controller.get_allocation_tables(selected_type)
         
         if not allocation_tables:
-            QMessageBox.warning(self, "警告", f"没有找到与 '{selected_type}' 相关的数据表")
+            QMessageBox.warning(self, "警告", f"没有找到 '{selected_type}' 相关的数据表")
             return
 
         # 创建新的模型控件
@@ -375,7 +372,7 @@ class ApportionmentModelView(QWidget):
         delete_button.setFixedSize(50, 25)
         name_layout.addWidget(delete_button, 0, Qt.AlignRight)
 
-        # 将水平布局添加到模型布局中
+        # 将水平布局添加到模型布局
         model_layout.addLayout(name_layout)
 
         # 添加应分摊共有建筑部位选择
@@ -402,7 +399,7 @@ class ApportionmentModelView(QWidget):
         h_combo.addItems(allocation_tables)
         model_layout.addWidget(h_combo)
 
-        # 添加上级分摊系数选择框
+        # 添加上级分摊系数选择
         label = QLabel("上一级分摊系数")
         label.setFixedHeight(20)
         model_layout.addWidget(label)
@@ -419,7 +416,7 @@ class ApportionmentModelView(QWidget):
             for coeff in parent_coefficients:
                 if coeff[0] == parent_model:
                     upper_coefficient_combo.addItem(f"{parent_model}: {coeff[1]}", float(coeff[1]))
-                    upper_coefficient_combo.setCurrentIndex(1)  # 默认选择父模型的系数
+                    upper_coefficient_combo.setCurrentIndex(1)  # 默认选择父模型的系��
         model_layout.addWidget(upper_coefficient_combo)
 
         # 添加计算分摊系数按钮
@@ -433,7 +430,7 @@ class ApportionmentModelView(QWidget):
         result_label.setFixedHeight(20)
         model_layout.addWidget(result_label)
 
-        # 添加计算结果显示文本框
+        # 添加计算结果显示文本
         result_display = QLineEdit()
         result_display.setObjectName("result_display")
         result_display.setFixedHeight(30)
@@ -463,12 +460,12 @@ if __name__ == '__main__':
             return ["选项1", "选项2", "选项3"]
         
         def get_allocation_tables(self, option):
-            return [f"{option}_表1", f"{option}_表2", f"{option}_表3"]
+            return [f"{option}_1", f"{option}_2", f"{option}_3"]
         
         # 添加缺失的方法
         def get_calculated_coefficients(self):
             # 返回模拟的已计算系数数据
-            # 每个元素是一个元组，包含 (描述, 系数值)
+            # 每个元素是一个元组，包含 (描述, 系数)
             return [
                 ("一层分摊", "0.5"),
                 ("二层分摊", "0.3"),

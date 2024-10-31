@@ -154,7 +154,7 @@ class BuildingAreaController:
             # 计算分摊系数并保留6位小数
             coefficient = round((c_total_area + c_total_area * upper_coefficient) / h_total_area, 6)
 
-            # 保存分摊系数和分摊公共面积到数据库
+            # 保存分摊系数和分摊公共��积到数据库
             self.model.save_apportionment_coefficient(h_tables, coefficient, model_type)
 
             return coefficient, None
@@ -222,3 +222,18 @@ class BuildingAreaController:
     def get_child_models(self, model_name):
         """获取指定模型的所有子模型"""
         return self.model.get_child_models(model_name)
+
+    def calculate_and_save_apportionable_area(self, c_tables, upper_coefficient, model_type):
+        """计算并保存应分摊公共面积"""
+        try:
+            success, error = self.model.calculate_and_save_apportionable_area(
+                c_tables, 
+                upper_coefficient,
+                model_type
+            )
+            
+            if not success:
+                return False, f"计算应分摊公共面积时出错：{error}"
+            return True, None
+        except Exception as e:
+            return False, str(e)

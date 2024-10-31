@@ -306,6 +306,54 @@ class BuildingAreaModel:
 
         self.conn.commit()
 
+    def calculate_and_save_apportionable_area(self, tables, upper_coefficient, model_type):
+        """计算并保存应分摊公共面积"""
+        try:
+            # 创建或更新"分摊面积"表
+            self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊面积" 
+                                 (ID TEXT PRIMARY KEY, 房号 TEXT, 套内面积 TEXT)''')
+            
+            # 添加新的应分摊公共面积列（如果不存在）
+            area_column = f"{model_type}_应分摊公共面积"
+            self.cursor.execute(f"PRAGMA table_info('分摊面积')")
+            columns = [row[1] for row in self.cursor.fetchall()]
+            if area_column not in columns:
+                self.cursor.execute(f"ALTER TABLE '分摊面积' ADD COLUMN '{area_column}' TEXT")
+
+            # 计算并保存每个ID的应分摊公共面积
+            for table in tables:
+                self.cursor.execute(f"SELECT ID, 房号, 套内面积 FROM '{table}'")
+                rows = self.cursor.fetchall()
+                for row in rows:
+                    # 计算应分摊公共面积
+                    inner_area = float(row[2])
+                    apportionable_area = inner_area + (inner_area * upper_coefficient)
+                    formatted_area = f"{apportionable_area:.2f}"  # 保留2位小数
+
+                    # 检查是否已存在该ID的记录
+                    self.cursor.execute("SELECT * FROM '分摊面积' WHERE ID = ?", (row[0],))
+                    existing_record = self.cursor.fetchone()
+                    
+                    if existing_record:
+                        # 更新现有记录
+                        self.cursor.execute(f'''UPDATE "分摊面积" 
+                                             SET 房号 = ?, 套内面积 = ?, '{area_column}' = ?
+                                             WHERE ID = ?''', 
+                                          (row[1], row[2], formatted_area, row[0]))
+                    else:
+                        # 构建动态SQL语句
+                        columns = ["ID", "房号", "套内面积", area_column]
+                        placeholders = ["?"] * len(columns)
+                        sql = f'''INSERT INTO "分摊面积" ({', '.join(f'"{col}"' for col in columns)})
+                                 VALUES ({', '.join(placeholders)})'''
+                        self.cursor.execute(sql, (row[0], row[1], row[2], formatted_area))
+
+                self.conn.commit()
+                return True, None
+        except Exception as e:
+            self.conn.rollback()
+            return False, str(e)
+
     def delete_apportionment_model_data(self, model_name):
         """删除与指定分摊模型相关的数列"""
         try:
@@ -316,12 +364,16 @@ class BuildingAreaModel:
             # 找到与模型相关的列
             coefficient_column = f"{model_name}_分摊系数"
             area_column = f"{model_name}_分摊公共面积"
+            apportionable_area_column = f"{model_name}_应分摊公共面积"
             columns_to_delete = []
+            
             # 如果列存在，则添加到要删除的列列表中
             if coefficient_column in columns:
                 columns_to_delete.append(coefficient_column)
             if area_column in columns:
                 columns_to_delete.append(area_column)
+            if apportionable_area_column in columns:
+                columns_to_delete.append(apportionable_area_column)
 
             if columns_to_delete:
                 # 创建新表，不包含要删除的列
