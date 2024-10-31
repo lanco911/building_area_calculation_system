@@ -26,7 +26,6 @@ def main():
     # 创建主窗口(视图)实例
     # MainWindow类定义了应用程序的用户界面
     view = MainWindow(controller)  # 传递controller给MainWindow
-    
     # 设置controller的view
     controller.set_view(view)  # 设置view并连接信号
     

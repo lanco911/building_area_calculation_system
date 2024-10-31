@@ -215,35 +215,52 @@ class ApportionmentModelView(QWidget):
 
     def delete_model(self, model_widget):
         """
-        删除指定的分摊模型
+        删除指定的分摊模型及其子模型
         
         功能：
         1. 确认删除操作
-        2. 通过控制器删除相关数据
-        3. 从界面移除模型控件
+        2. 通过控制器删除相关数据和关系记录
+        3. 从界面移除模型控件及其子模型控件
         
-        使用场景：
-        - 用户点击模型中的删除按钮时调用
-        - 需要移除已创建的分摊规则时使用
+        参数：
+        model_widget: 当前操作的模型控件
         """
         # 获取模型名称
-        name_label = model_widget.findChildren(QLabel)[0] # 获取第一个QLabel，假设它是名称标签
-        model_name = name_label.text().split(' - ')[0] # 获取模型名称
+        name_label = model_widget.findChildren(QLabel)[0]
+        model_name = name_label.text().split(' - ')[0]
+
+        # 获取子模型列表
+        child_models = self.controller.get_child_models(model_name)
+        
+        # 构建确认消息
+        confirm_message = f"确定要删除模型 '{model_name}'"
+        if child_models:
+            confirm_message += f" 及其子模型 ({', '.join(child_models)})"
+        confirm_message += " 及其相关数据吗？"
 
         # 确认对话框
-        reply = QMessageBox.question(self, '确认删除', 
-                                     f"确定要删除模型 '{model_name}' 及其相关数据吗？",
+        reply = QMessageBox.question(self, '确认删除', confirm_message,
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         
         if reply == QMessageBox.Yes:
-            # 调用控制器方法删除模型数据
-            success, message = self.controller.delete_apportionment_model(model_name) # 调用控制器方法删除模型数据
+            # 调用控制器方法删除模型数据和关系记录
+            success, message = self.controller.delete_apportionment_model(model_name)
             
             if success:
-                # 从布局中移除并删除指定的模型控件
+                # 从界面移除模型控件
                 self.scroll_layout.removeWidget(model_widget)
                 self.models.remove(model_widget)
                 model_widget.deleteLater()
+                
+                # 移除子模型控件
+                for child_name in child_models:
+                    for model in self.models[:]:  # 使用切片创建副本进行迭代
+                        child_label = model.findChildren(QLabel)[0]
+                        if child_label.text().split(' - ')[0] == child_name:
+                            self.scroll_layout.removeWidget(model)
+                            self.models.remove(model)
+                            model.deleteLater()
+                
                 QMessageBox.information(self, "删除成功", message)
             else:
                 QMessageBox.warning(self, "删除失败", message)

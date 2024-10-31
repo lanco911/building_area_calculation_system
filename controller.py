@@ -64,7 +64,7 @@ class BuildingAreaController:
         if self.model.save_data("户单元套内面积"):
             self.view.show_message("保存成功", "户单元数据已成功保存，并更新了幢总建筑面积表")
         else:
-            self.view.show_message("保存失败", "保存户单元��据时出错")
+            self.view.show_message("保存失败", "保存户单元据时出错")
 
     def save_common_property_data(self):
         """
@@ -162,13 +162,27 @@ class BuildingAreaController:
             return 0, str(e)
 
     def delete_apportionment_model(self, model_name):
-        """删除分摊模型及其相关数据"""
+        """删除分摊模型及其子模型"""
         try:
-            deleted_columns = self.model.delete_apportionment_model_data(model_name)
-            if deleted_columns:
-                return True, f"已成功删除模型 '{model_name}' 及其相关数据列：{', '.join(deleted_columns)}"
+            # 获取所有子模型
+            child_models = self.get_child_models(model_name)
+            all_models = [model_name] + child_models
+            
+            # 删除所有相关模型的数据
+            deleted_columns = []
+            for model in all_models:
+                result = self.model.delete_apportionment_model_data(model)
+                if result:
+                    deleted_columns.extend(result)
+            
+            # 删除模型关系记录
+            if self.model.delete_model_relationship(model_name):
+                if deleted_columns:
+                    return True, f"已成功删除模型 '{model_name}' 及其子模型，删除的数据列：{', '.join(deleted_columns)}"
+                else:
+                    return True, f"已成功删除模型 '{model_name}' 及其子模型的关系记录"
             else:
-                return False, f"未找到与模型 '{model_name}' 相关的数据"
+                return False, f"删除模型 '{model_name}' 的关系记录失败"
         except Exception as e:
             return False, f"删除模型时出错：{str(e)}"
 
@@ -204,3 +218,7 @@ class BuildingAreaController:
             available_models = hierarchy
             
         return [(model[1], model[4]) for model in available_models]
+
+    def get_child_models(self, model_name):
+        """获取指定模型的所有子模型"""
+        return self.model.get_child_models(model_name)

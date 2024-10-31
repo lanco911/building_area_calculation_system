@@ -24,32 +24,56 @@ class BuildingAreaModel:
         self.initialize_tables()
 
     def initialize_tables(self):
-        # 创建所有必要的表
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS "户单元套内面积" 
-                               (HID TEXT, 实际楼层 TEXT, 房号 TEXT, 主间面积 TEXT, 
-                                阳台面积 TEXT, 套内面积 TEXT, 用途 TEXT)''')
-        
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS "共有建筑面积" 
-                               (CID TEXT, 实际楼层 TEXT, 房号 TEXT, 主间面积 TEXT, 
-                                阳台面积 TEXT, 套内面积 TEXT, 用途 TEXT)''')
-        
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS "幢总建筑面积" 
-                               (ID TEXT, 实际楼层 TEXT, 房号 TEXT, 主间面积 TEXT, 
-                                阳台面积 TEXT, 套内面积 TEXT, 用途 TEXT)''')
-        
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊面积" 
-                               (ID TEXT PRIMARY KEY, 房号 TEXT, 套内面积 TEXT)''')
-        
-        # 添加分摊模型关系表
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊模型关系" (
-            model_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            model_name TEXT NOT NULL,
-            parent_id INTEGER,
-            order_index INTEGER NOT NULL,
-            FOREIGN KEY (parent_id) REFERENCES "分摊模型关系" (model_id)
-        )''')
-        
-        self.conn.commit()
+        """初始化数据库表结构"""
+        try:
+            # 创建户单元套内面积表
+            self.cursor.execute('''CREATE TABLE IF NOT EXISTS "户单元套内面积" 
+                                 (HID TEXT PRIMARY KEY, 
+                                  实际楼层 TEXT, 
+                                  房号 TEXT, 
+                                  主间面积 TEXT, 
+                                  阳台面积 TEXT, 
+                                  套内面积 TEXT, 
+                                  用途 TEXT)''')
+            
+            # 创建共有建筑面积表
+            self.cursor.execute('''CREATE TABLE IF NOT EXISTS "共有建筑面积" 
+                                 (CID TEXT PRIMARY KEY, 
+                                  实际楼层 TEXT, 
+                                  房号 TEXT, 
+                                  主间面积 TEXT, 
+                                  阳台面积 TEXT, 
+                                  套内面积 TEXT, 
+                                  用途 TEXT)''')
+            
+            # 创建幢总建筑面积表
+            self.cursor.execute('''CREATE TABLE IF NOT EXISTS "幢总建筑面积" 
+                                 (ID TEXT PRIMARY KEY, 
+                                  实际楼层 TEXT, 
+                                  房号 TEXT, 
+                                  主间面积 TEXT, 
+                                  阳台面积 TEXT, 
+                                  套内面积 TEXT, 
+                                  用途 TEXT)''')
+            
+            # 创建分摊面积表
+            self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊面积" 
+                                 (ID TEXT PRIMARY KEY, 
+                                  房号 TEXT, 
+                                  套内面积 TEXT)''')
+            
+            # 创建分摊模型关系表
+            self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊模型关系" 
+                                 (model_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                  model_name TEXT NOT NULL,
+                                  parent_id INTEGER,
+                                  order_index INTEGER NOT NULL,
+                                  FOREIGN KEY (parent_id) REFERENCES "分摊模型关系" (model_id))''')
+            
+            self.conn.commit()
+        except Exception as e:
+            print(f"初始化表时出错：{str(e)}")
+            self.conn.rollback()
 
     def import_data(self):
         """
@@ -59,7 +83,7 @@ class BuildingAreaModel:
         将读取的数据转换为列表格式并存储在self.data中。
         
         返回:
-            list: 导入的数据列表，如果导入失败则返回空列表
+            list: 导入的数据列表，如导入失败则返回空列表
         
         注意:
             - 仅支持.xlsx格式的文件
@@ -127,18 +151,27 @@ class BuildingAreaModel:
             return False
 
     def update_total_building_area(self):
-        # 清空幢总建筑面积表
-        self.cursor.execute('DELETE FROM "幢总建筑面积"')
+        """更新幢总建筑面积表"""
+        try:
+            # 清空幢总建筑面积表
+            self.cursor.execute('DELETE FROM "幢总建筑面积"')
 
-        # 插入户单元套内面积数据
-        self.cursor.execute('''INSERT INTO "幢总建筑面积" 
-                               SELECT 'H' || HID, 实际楼层, 房号, 主间面积, 阳台面积, 套内面积, 用途 
-                               FROM "户单元套内面积"''')
+            # 插入户单元套内面积数据
+            self.cursor.execute('''INSERT INTO "幢总建筑面积" 
+                                 (ID, 实际楼层, 房号, 主间面积, 阳台面积, 套内面积, 用途)
+                                 SELECT 'H' || HID, 实际楼层, 房号, 主间面积, 阳台面积, 套内面积, 用途 
+                                 FROM "户单元套内面积"''')
 
-        # 插入共有建筑面积数据
-        self.cursor.execute('''INSERT INTO "幢总建筑面积" 
-                               SELECT 'C' || CID, 实际楼层, 房号, 主间面积, 阳台面积, 套内面积, 用途 
-                               FROM "共有建筑面积"''')
+            # 插入共有建筑面积数据
+            self.cursor.execute('''INSERT INTO "幢总建筑面积" 
+                                 (ID, 实际楼层, 房号, 主间面积, 阳台面积, 套内面积, 用途)
+                                 SELECT 'C' || CID, 实际楼层, 房号, 主间面积, 阳台面积, 套内面积, 用途 
+                                 FROM "共有建筑面积"''')
+
+            self.conn.commit()
+        except Exception as e:
+            print(f"更新幢总建筑面积表时出错：{str(e)}")
+            self.conn.rollback()
 
     def __del__(self):
         # 确保在对象被销毁时关闭数据库连接
@@ -150,9 +183,17 @@ class BuildingAreaModel:
         return [row[0] for row in self.cursor.fetchall()]
 
     def fetch_data_from_table(self, table_name):
-        """从指定表中获取ID、房号和套内面积数据"""
-        self.cursor.execute(f"SELECT ID, 房号, 套内面积 FROM '{table_name}'")
-        return self.cursor.fetchall()
+        """从指定表中获取数据"""
+        try:
+            # 根据表名确定ID字段名
+            id_field = "HID" if table_name == "户单元套内面积" else "CID" if table_name == "共有建筑面积" else "ID"
+            
+            # 执行查询
+            self.cursor.execute(f"SELECT {id_field}, 房号, 套内面积 FROM '{table_name}'")
+            return self.cursor.fetchall()
+        except Exception as e:
+            print(f"获取数据时出错：{str(e)}")
+            return []
 
     def save_allocation_data(self, allocation_name, data):
         """保存分配数据到多个表"""
@@ -236,7 +277,7 @@ class BuildingAreaModel:
         # 将系数格式化为保留6位小数的字符串
         formatted_coefficient = f"{coefficient:.6f}"
 
-        # 更新或插入数���
+        # 更新或插入数
         for table in tables:
             self.cursor.execute(f"SELECT ID, 房号, 套内面积 FROM '{table}'")
             rows = self.cursor.fetchall()
@@ -266,7 +307,7 @@ class BuildingAreaModel:
         self.conn.commit()
 
     def delete_apportionment_model_data(self, model_name):
-        """删除与指定分摊模型相关的数据列"""
+        """删除与指定分摊模型相关的数列"""
         try:
             # 获取"分摊面积"表的列信息
             self.cursor.execute("PRAGMA table_info('分摊面积')")
@@ -381,3 +422,67 @@ class BuildingAreaModel:
             ORDER BY path;
         """)
         return self.cursor.fetchall()
+
+    def get_child_models(self, model_name):
+        """获取指定模型的所有子模型"""
+        try:
+            # 首先获取当前模型的ID
+            self.cursor.execute("""
+                WITH RECURSIVE model_tree AS (
+                    -- 基础查询：获取指定模型
+                    SELECT 
+                        model_id, 
+                        model_name,
+                        parent_id
+                    FROM '分摊模型关系'
+                    WHERE model_name = ?
+                    
+                    UNION ALL
+                    
+                    -- 递归查询：获取子模型
+                    SELECT 
+                        t.model_id, 
+                        t.model_name,
+                        t.parent_id
+                    FROM '分摊模型关系' t
+                    JOIN model_tree mt ON t.parent_id = mt.model_id
+                )
+                SELECT model_name
+                FROM model_tree
+                WHERE model_name != ?;
+            """, (model_name, model_name))
+            
+            return [row[0] for row in self.cursor.fetchall()]
+        except Exception as e:
+            print(f"获取子模型时出错：{str(e)}")
+            return []
+
+    def delete_model_relationship(self, model_name):
+        """删除模型及其子模型的关系记录"""
+        try:
+            # 获取要删除的模型ID
+            self.cursor.execute("SELECT model_id FROM '分摊模型关系' WHERE model_name = ?", (model_name,))
+            model_id = self.cursor.fetchone()
+            
+            if model_id:
+                model_id = model_id[0]
+                # 删除该模型及其所有子模型的关系记录
+                self.cursor.execute("""
+                    WITH RECURSIVE model_tree AS (
+                        SELECT model_id FROM '分摊模型关系' WHERE model_id = ?
+                        UNION ALL
+                        SELECT t.model_id 
+                        FROM '分摊模型关系' t
+                        JOIN model_tree mt ON t.parent_id = mt.model_id
+                    )
+                    DELETE FROM '分摊模型关系'
+                    WHERE model_id IN (SELECT model_id FROM model_tree);
+                """, (model_id,))
+                
+                self.conn.commit()
+                return True
+            return False
+        except Exception as e:
+            print(f"删除模型关系时出错：{str(e)}")
+            self.conn.rollback()
+            return False
