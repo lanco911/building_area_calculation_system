@@ -161,8 +161,10 @@ class CPHouseBelongseting(QWidget):
         # 弹出对话框获取新分组名称
         group_name, ok = QInputDialog.getText(self, '添加分组', '请输入新分组名称:')
         if ok and group_name:
+            # 在用户输入的名称后添加"范围各单元"
+            full_group_name = f"{group_name}范围各单元"
             self.group_count += 1  # 增加分组计数
-            group_widget = QGroupBox(f"{group_name}")
+            group_widget = QGroupBox(f"{full_group_name}")  # 使用完整的分组名称
             group_layout = QVBoxLayout()
 
             # 设置参与分摊单元布局
@@ -217,7 +219,8 @@ class CPHouseBelongseting(QWidget):
         if ok and table_name:
             data = self.controller.fetch_data_from_table(table_name)
             self.available_units = data  # 存储完整的数据
-            display_units = [f"{row[1]} ({row[2]})" for row in data]  # 只用于显示
+            # 修改显示格式，使用 "ID-房号(面积)" 的格式
+            display_units = [f"{row[0]}-{row[1]}({row[2]})" for row in data]
             
             for group in allocation_widget.findChildren(QGroupBox):
                 list_widget = group.findChild(QListWidget)
@@ -251,13 +254,16 @@ class CPHouseBelongseting(QWidget):
 
     def add_participating_unit(self, list_widget):
         # 弹出选择单元对话框
-        dialog = SelectUnitsDialog([f"{unit[1]} ({unit[2]})" for unit in self.available_units])
+        # 使用相同的显示格式
+        dialog = SelectUnitsDialog([f"{unit[0]}-{unit[1]}({unit[2]})" for unit in self.available_units])
         if dialog.exec_():
             selected_units = dialog.get_selected_units()  # 获取选中的单元
             for unit in selected_units:
                 # 检查单元是否已存在于列表中
                 if list_widget.findItems(unit, Qt.MatchExactly) == []:
-                    index = next(i for i, u in enumerate(self.available_units) if f"{u[1]} ({u[2]})" == unit)
+                    # 修改匹配逻辑以适应新的显示格式
+                    index = next(i for i, u in enumerate(self.available_units) 
+                               if f"{u[0]}-{u[1]}({u[2]})" == unit)
                     item = QListWidgetItem(unit)
                     item.setData(Qt.UserRole, self.available_units[index])
                     list_widget.addItem(item)  # 添加新单元到列表

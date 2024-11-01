@@ -62,9 +62,9 @@ class BuildingAreaController:
         self.model.data = data
         self.model.headers = headers
         if self.model.save_data("户单元套内面积"):
-            self.view.show_message("保存成功", "户单元数据已成功保存，并更新了幢总建筑面积表")
+            self.view.show_message("保存成功", "户单元数据已成功保存，并更新了幢总建筑面积表和整幢所有单元数据")
         else:
-            self.view.show_message("保存失败", "保存户单元据时出错")
+            self.view.show_message("保存失败", "保存户单元数据时出错")
 
     def save_common_property_data(self):
         """
@@ -75,9 +75,9 @@ class BuildingAreaController:
         self.model.data = data
         self.model.headers = headers
         if self.model.save_data("共有建筑面积"):
-            self.view.show_message("保存成功", "共有建筑数据已成功保存，并更新了幢总建筑面积表")
+            self.view.show_message("保存成功", "共有建筑数据已成功保存，并更新了幢总建筑面积表和整幢所有单元数据")
         else:
-            self.view.show_message("保存失败", "保共有建筑数据时出错")
+            self.view.show_message("保存失败", "保存共有建筑数据时出错")
 
     def show(self):
         """
@@ -154,7 +154,7 @@ class BuildingAreaController:
             # 计算分摊系数并保留6位小数
             coefficient = round((c_total_area + c_total_area * upper_coefficient) / h_total_area, 6)
 
-            # 保存分摊系数和分摊公共��积到数据库
+            # 保存分摊系数和分摊公共积到数据库
             self.model.save_apportionment_coefficient(h_tables, coefficient, model_type)
 
             return coefficient, None

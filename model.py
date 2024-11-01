@@ -143,6 +143,9 @@ class BuildingAreaModel:
             # 更新幢总建筑面积表
             self.update_total_building_area()
 
+            # 更新整幢所有单元数据
+            self.save_total_building_units()
+
             self.conn.commit()
             print(f"成功保存数据到表 {table_name}，共{len(self.data)}行")
             return True
@@ -220,35 +223,42 @@ class BuildingAreaModel:
         return created_tables
 
     def delete_allocation_tables(self, allocation_name):
-        """删除与指定分摊所属相关的所有数据表"""
+        """删除与指定分摊所属相关的所有数据表，但保留整幢表"""
         base_table_name = f"分摊所属_{allocation_name}"
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", (f"{base_table_name}%",))
         tables_to_delete = self.cursor.fetchall()
         
+        deleted_tables = []
         for (table_name,) in tables_to_delete:
-            self.cursor.execute(f"DROP TABLE IF EXISTS '{table_name}'")
+            # 确保不删除整幢表
+            if table_name != "分摊所属_整幢":
+                self.cursor.execute(f"DROP TABLE IF EXISTS '{table_name}'")
+                deleted_tables.append(table_name)
         
         self.conn.commit()
-        return [table[0] for table in tables_to_delete]
+        return deleted_tables
 
     def get_allocation_options(self):
-        """获取分摊所属选项"""
+        """获取分摊所属选项，不包括整幢"""
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '分摊所属_%'")
         tables = self.cursor.fetchall()
         
         options = set()
         for (table,) in tables:
-            match = re.match(r'分摊所属_(.+?)_', table)
-            if match:
-                options.add(match.group(1))
+            # 排除整幢表
+            if table != "分摊所属_整幢":
+                match = re.match(r'分摊所属_(.+?)_', table)
+                if match:
+                    options.add(match.group(1))
         
         return list(options)
 
     def get_allocation_tables(self, option):
-        """获取指定分摊所属选项的相关数据表"""
+        """获取指定分摊所属选项的相关数据表，不包括整幢表"""
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", (f'分摊所属_{option}_%',))
         tables = self.cursor.fetchall()
-        return [table[0] for table in tables]
+        # 过滤掉整幢表
+        return [table[0] for table in tables if table[0] != "分摊所属_整幢"]
 
     def get_total_area(self, tables):
         total_area = 0
@@ -536,5 +546,26 @@ class BuildingAreaModel:
             return False
         except Exception as e:
             print(f"删除模型关系时出错：{str(e)}")
+            self.conn.rollback()
+            return False
+
+    def save_total_building_units(self):
+        """保存整幢所有单元数据到分摊所属表"""
+        try:
+            # 创建分摊所属_整幢表
+            self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊所属_整幢" 
+                                 (ID TEXT, 房号 TEXT, 套内面积 TEXT)''')
+            
+            # 从幢总建筑面积表获取数据并保存
+            self.cursor.execute('''DELETE FROM "分摊所属_整幢"''')
+            self.cursor.execute('''INSERT INTO "分摊所属_整幢" 
+                                 (ID, 房号, 套内面积)
+                                 SELECT ID, 房号, 套内面积 
+                                 FROM "幢总建筑面积"''')
+            
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"保存整幢数据时出错：{str(e)}")
             self.conn.rollback()
             return False
