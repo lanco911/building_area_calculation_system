@@ -70,11 +70,13 @@ class BuildingAreaModel:
                                   order_index INTEGER NOT NULL,
                                   FOREIGN KEY (parent_id) REFERENCES "分摊模型关系" (model_id))''')
             
-            # 创建分摊所属关系表
+            # 创建新的分摊所属关系表
             self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊所属关系" 
-                                 (parent_table TEXT,
-                                  child_table TEXT,
-                                  PRIMARY KEY (parent_table, child_table))''')
+                                 (belong_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                  belong_name TEXT NOT NULL,
+                                  parent_id INTEGER,
+                                  order_index INTEGER NOT NULL,
+                                  FOREIGN KEY (parent_id) REFERENCES "分摊所属关系" (belong_id))''')
             
             self.conn.commit()
         except Exception as e:
@@ -187,7 +189,7 @@ class BuildingAreaModel:
         self.conn.close()
 
     def get_table_names(self):
-        """获取数据库中所���表的名称"""
+        """获取数据库中所表的名称"""
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
         return [row[0] for row in self.cursor.fetchall()]
 
@@ -227,14 +229,50 @@ class BuildingAreaModel:
 
         # 更新分摊所属关系表
         if parent_table:
+            # 获取父表的belong_id
+            self.cursor.execute('''SELECT belong_id FROM "分摊所属关系" WHERE belong_name = ?''', 
+                              (parent_table,))
+            parent_result = self.cursor.fetchone()
+            parent_id = parent_result[0] if parent_result else None
+
+            # 如果父表不存在于关系表中，先添加父表
+            if parent_id is None:
+                self.cursor.execute('''INSERT INTO "分摊所属关系" (belong_name, parent_id, order_index)
+                                     VALUES (?, NULL, 
+                                            (SELECT COALESCE(MAX(order_index), 0) + 1 
+                                             FROM "分摊所属关系" 
+                                             WHERE parent_id IS NULL))''', 
+                                  (parent_table,))
+                parent_id = self.cursor.lastrowid
+
+            # 添加或更新当前分摊所属的记录
             for table_name in created_tables:
-                # 先删除可能存在的旧关系
-                self.cursor.execute('''DELETE FROM "分摊所属关系" 
-                                     WHERE child_table = ?''', (table_name,))
-                # 插入新关系
-                self.cursor.execute('''INSERT INTO "分摊所属关系" (parent_table, child_table)
-                                     VALUES (?, ?)''', (parent_table, table_name))
-        
+                # 获取当前最大的order_index
+                self.cursor.execute('''SELECT COALESCE(MAX(order_index), 0) 
+                                     FROM "分摊所属关系" 
+                                     WHERE parent_id = ?''', 
+                                  (parent_id,))
+                max_order = self.cursor.fetchone()[0]
+
+                # 检查是否已存在记录
+                self.cursor.execute('''SELECT belong_id FROM "分摊所属关系" 
+                                     WHERE belong_name = ?''', 
+                                  (table_name,))
+                existing = self.cursor.fetchone()
+
+                if existing:
+                    # 更新现有记录
+                    self.cursor.execute('''UPDATE "分摊所属关系" 
+                                         SET parent_id = ?, order_index = ?
+                                         WHERE belong_id = ?''',
+                                      (parent_id, max_order + 1, existing[0]))
+                else:
+                    # 插入新记录
+                    self.cursor.execute('''INSERT INTO "分摊所属关系" 
+                                         (belong_name, parent_id, order_index)
+                                         VALUES (?, ?, ?)''',
+                                      (table_name, parent_id, max_order + 1))
+
         self.conn.commit()
         return created_tables
 
@@ -242,61 +280,39 @@ class BuildingAreaModel:
         """删除与指定分摊所属相关的所有数据表，但保留整幢表"""
         base_table_name = f"分摊所属_{allocation_name}"
         
-        # 获取要删除的表及其子表
-        tables_to_delete = set()
-        
-        # 首先检查基础表是否存在
-        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", 
-                           (f"{base_table_name}%",))
-        base_tables = set(row[0] for row in self.cursor.fetchall())
-        if not base_tables:
-            return []  # 如果没有找到相关表，返回空列表
-        
-        tables_to_delete.update(base_tables)
-        
-        # 使用循环获取所有子表
-        try:
-            current_tables = set(base_tables)
-            while current_tables:
-                # 构建查询参数
-                placeholders = ','.join(['?' for _ in current_tables])
-                # 获取当前表集合中所有表的子表
-                self.cursor.execute(f'''SELECT child_table 
-                                      FROM "分摊所属关系" 
-                                      WHERE parent_table IN ({placeholders})''',
-                                tuple(current_tables))
+        # 使用递归CTE获取所有需要删除的表
+        self.cursor.execute("""
+            WITH RECURSIVE belong_tree AS (
+                -- 基础查询：获取指定分摊所属
+                SELECT belong_id, belong_name, parent_id
+                FROM "分摊所属关系"
+                WHERE belong_name LIKE ?
                 
-                # 获取新的子表
-                new_tables = set(row[0] for row in self.cursor.fetchall())
-                # 只保留尚未处理过的表
-                current_tables = new_tables - tables_to_delete
-                # 将新表添加到要删除的集合中
-                tables_to_delete.update(new_tables)
+                UNION ALL
                 
-        except Exception as e:
-            print(f"获取子表时出错：{str(e)}")
+                -- 递归查询：获取子分摊所属
+                SELECT c.belong_id, c.belong_name, c.parent_id
+                FROM "分摊所属关系" c
+                JOIN belong_tree p ON c.parent_id = p.belong_id
+            )
+            SELECT belong_name FROM belong_tree
+        """, (f"{base_table_name}%",))
         
-        # 删除表和关系
+        tables_to_delete = set(row[0] for row in self.cursor.fetchall())
+        
+        # 删除表和关系记录
         deleted_tables = []
         for table_name in tables_to_delete:
-            # 确保不删除整幢表
             if table_name != "分摊所属_整幢":
                 try:
+                    # 删除数据表
                     self.cursor.execute(f"DROP TABLE IF EXISTS '{table_name}'")
+                    # 删除关系记录
+                    self.cursor.execute('''DELETE FROM "分摊所属关系" WHERE belong_name = ?''',
+                                      (table_name,))
                     deleted_tables.append(table_name)
                 except Exception as e:
                     print(f"删除表 {table_name} 时出错：{str(e)}")
-        
-        # 删除分摊所属关系表中的记录
-        if deleted_tables:  # 只有在实际删除了表的情况下才删除关系
-            try:
-                placeholders = ','.join(['?' for _ in deleted_tables])
-                self.cursor.execute(f'''DELETE FROM "分摊所属关系" 
-                                      WHERE parent_table IN ({placeholders})
-                                      OR child_table IN ({placeholders})''',
-                                tuple(deleted_tables) + tuple(deleted_tables))
-            except Exception as e:
-                print(f"删除关系记录时出错：{str(e)}")
         
         self.conn.commit()
         return deleted_tables
