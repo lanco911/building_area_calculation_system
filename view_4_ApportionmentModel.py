@@ -30,7 +30,7 @@ class CheckableComboBox(QComboBox):
     
     特点：
     - 支持多选功能
-    - 显示已选项的文本���表
+    - 显示已选项的文本表
     - 保持选择状态
     """
     # 自定义的可勾选ComboBox
@@ -60,21 +60,35 @@ class CheckableComboBox(QComboBox):
         self.check_items()
 
     def check_items(self):
+        """更新选中项的显示文本"""
         checkedItems = []
         for i in range(self.model().rowCount()):
             if self.model().item(i).checkState() == Qt.Checked:
+                # 使用显示文本而不是完整数据
                 checkedItems.append(self.model().item(i).text())
         text = ", ".join(checkedItems)
         if self.lineEdit():
-            self.lineEdit().setText(text)  # 直���设置文本，不使用 elidedText
+            self.lineEdit().setText(text)
 
     def addItem(self, text, data=None):
+        """
+        添加选项到下拉框
+        
+        Args:
+            text (str): 选项的原始文本
+            data: 选项关联的数据，默认为None时使用text作为data
+        """
         item = QStandardItem()
-        item.setText(text)
+        # 获取最后一个下划线后的内容作为显示文本
+        display_text = text.split('_')[-1] if '_' in text else text
+        item.setText(display_text)
+        
+        # 保存完整的数据
         if data is None:
             item.setData(text)
         else:
             item.setData(data)
+        
         item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
         item.setData(Qt.Unchecked, Qt.CheckStateRole)
         self.model().appendRow(item)
@@ -136,7 +150,7 @@ class ApportionmentModelView(QWidget):
         self.scroll_layout = QHBoxLayout(self.scroll_content) # 创建滚动布局
         self.scroll_layout.setAlignment(Qt.AlignLeft)  # 设置左对齐
         self.scroll_layout.setSpacing(10)  # 模型之间的间距
-        self.scroll_area.setWidget(self.scroll_content) # 设置滚动��域的内容
+        self.scroll_area.setWidget(self.scroll_content) # 设置滚动域的内容
         self.main_layout.addWidget(self.scroll_area) # 将滚动区域添加到主布局
 
         # 创建底部按钮布局
@@ -168,7 +182,7 @@ class ApportionmentModelView(QWidget):
         allocation_options = self.controller.get_allocation_options()
         
         if not allocation_options:
-            QMessageBox.warning(self, "警告", "没���可用的分摊所属选项")
+            QMessageBox.warning(self, "警告", "没有可用的分摊所属选项")
             return
 
         # 创建对话框
@@ -334,7 +348,10 @@ class ApportionmentModelView(QWidget):
             # 更新分摊说明
             explanation = model_widget.findChild(QLabel, "explanation")
             if explanation:
-                explanation.setText(f"分摊说明:\n应分摊的共有建筑部位：{', '.join(c_tables)}\n参加分摊的户名称：{', '.join(h_tables)}")
+                c_tables_display = [table.split('_')[-1] for table in c_tables]
+                h_tables_display = [table.split('_')[-1] for table in h_tables]
+                explanation.setText(f"分摊说明:\n应分摊的共有建筑部位：{', '.join(c_tables_display)}\n"
+                                    f"参加分摊的户名称：{', '.join(h_tables_display)}")
 
     def create_model_widget(self, selected_type, parent_model):
         """
@@ -416,7 +433,7 @@ class ApportionmentModelView(QWidget):
             for coeff in parent_coefficients:
                 if coeff[0] == parent_model:
                     upper_coefficient_combo.addItem(f"{parent_model}: {coeff[1]}", float(coeff[1]))
-                    upper_coefficient_combo.setCurrentIndex(1)  # 默认选择父模型的系��
+                    upper_coefficient_combo.setCurrentIndex(1)  # 默认选择父模型的系
         model_layout.addWidget(upper_coefficient_combo)
 
         # 添加计算分摊系数按钮
