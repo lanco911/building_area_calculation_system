@@ -70,13 +70,23 @@ class BuildingAreaModel:
                                   order_index INTEGER NOT NULL,
                                   FOREIGN KEY (parent_id) REFERENCES "分摊模型关系" (model_id))''')
             
-            # 创建新的分摊所属关系表
+            # 创建新的分摊所属关系表，增加 belong_alias 列
             self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊所属关系" 
                                  (belong_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                   belong_name TEXT NOT NULL,
+                                  belong_alias TEXT NOT NULL,
                                   parent_id INTEGER,
                                   order_index INTEGER NOT NULL,
                                   FOREIGN KEY (parent_id) REFERENCES "分摊所属关系" (belong_id))''')
+            
+            # 检查是否已存在整幢记录
+            self.cursor.execute('''SELECT belong_id FROM "分摊所属关系" 
+                                 WHERE belong_name = "分摊所属_整幢"''')
+            if not self.cursor.fetchone():
+                # 添加整幢记录作为默认记录，设置别名
+                self.cursor.execute('''INSERT INTO "分摊所属关系" 
+                                     (belong_name, belong_alias, parent_id, order_index)
+                                     VALUES ("分摊所属_整幢", "整幢", NULL, 0)''')
             
             self.conn.commit()
         except Exception as e:
@@ -237,12 +247,15 @@ class BuildingAreaModel:
 
             # 如果父表不存在于关系表中，先添加父表
             if parent_id is None:
-                self.cursor.execute('''INSERT INTO "分摊所属关系" (belong_name, parent_id, order_index)
-                                     VALUES (?, NULL, 
+                # 创建父表的别名
+                parent_alias = parent_table.replace("分摊所属_", "")
+                self.cursor.execute('''INSERT INTO "分摊所属关系" 
+                                     (belong_name, belong_alias, parent_id, order_index)
+                                     VALUES (?, ?, NULL, 
                                             (SELECT COALESCE(MAX(order_index), 0) + 1 
                                              FROM "分摊所属关系" 
                                              WHERE parent_id IS NULL))''', 
-                                  (parent_table,))
+                                  (parent_table, parent_alias))
                 parent_id = self.cursor.lastrowid
 
             # 添加或更新当前分摊所属的记录
@@ -254,6 +267,9 @@ class BuildingAreaModel:
                                   (parent_id,))
                 max_order = self.cursor.fetchone()[0]
 
+                # 创建表的别名
+                table_alias = table_name.replace("分摊所属_", "")
+
                 # 检查是否已存在记录
                 self.cursor.execute('''SELECT belong_id FROM "分摊所属关系" 
                                      WHERE belong_name = ?''', 
@@ -263,15 +279,15 @@ class BuildingAreaModel:
                 if existing:
                     # 更新现有记录
                     self.cursor.execute('''UPDATE "分摊所属关系" 
-                                         SET parent_id = ?, order_index = ?
+                                         SET parent_id = ?, order_index = ?, belong_alias = ?
                                          WHERE belong_id = ?''',
-                                      (parent_id, max_order + 1, existing[0]))
+                                      (parent_id, max_order + 1, table_alias, existing[0]))
                 else:
                     # 插入新记录
                     self.cursor.execute('''INSERT INTO "分摊所属关系" 
-                                         (belong_name, parent_id, order_index)
-                                         VALUES (?, ?, ?)''',
-                                      (table_name, parent_id, max_order + 1))
+                                         (belong_name, belong_alias, parent_id, order_index)
+                                         VALUES (?, ?, ?, ?)''',
+                                      (table_name, table_alias, parent_id, max_order + 1))
 
         self.conn.commit()
         return created_tables
