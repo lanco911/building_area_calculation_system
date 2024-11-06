@@ -1,6 +1,7 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QLabel, QGroupBox, QListWidget, QDialog, QDialogButtonBox, QScrollArea, QInputDialog, QTabWidget, QMessageBox, QComboBox, QListWidgetItem
 from PyQt5.QtCore import Qt
+import re
 
 # 选择单元对话框类
 class SelectUnitsDialog(QDialog): 
@@ -36,6 +37,7 @@ class CPHouseBelongseting(QWidget):
         self.available_units = []
         self.group_count = 0
         self.allocation_areas = []
+        self.current_parent_table = None  # 添加变量存储当前选择的父表
         self.initUI()
 
     def initUI(self):
@@ -137,25 +139,47 @@ class CPHouseBelongseting(QWidget):
             
             # 确认对话框
             reply = QMessageBox.question(self, '确认删除', 
-                                         f"确定要删除分摊所属 '{allocation_name}' 及其相关数据吗？",
+                                         f"确定要删除分摊所属 '{allocation_name}' 及其相关数据吗？\n" +
+                                         "注意：这将同时删除所有子分摊所属！",
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             
             if reply == QMessageBox.Yes:
                 # 删除数据库中的相关表
                 deleted_tables = self.controller.delete_allocation_area(allocation_name)
                 
-                # 从界面中删除
-                self.tab_widget.removeTab(index)
-                self.allocation_areas.remove(allocation_widget)
-                allocation_widget.deleteLater()
+                # 从表名中提取所有相关的分摊所属名称
+                deleted_allocations = set()
+                for table in deleted_tables:
+                    # 从表名中提取分摊所属名称
+                    match = re.match(r'分摊所属_([^_]+)', table)
+                    if match:
+                        deleted_allocations.add(match.group(1))
+                
+                # 删除所有相关的分摊所属控件
+                tabs_to_remove = []
+                for i in range(self.tab_widget.count()):
+                    tab_text = self.tab_widget.tabText(i)
+                    if tab_text in deleted_allocations:
+                        tabs_to_remove.append(i)
+                
+                # 从后往前删除标签页，避免索引变化的问题
+                for i in sorted(tabs_to_remove, reverse=True):
+                    widget = self.tab_widget.widget(i)
+                    self.tab_widget.removeTab(i)
+                    if widget in self.allocation_areas:
+                        self.allocation_areas.remove(widget)
+                    widget.deleteLater()
                 
                 # 显示删除结果
                 if deleted_tables:
-                    QMessageBox.information(self, "删除成功", 
-                                            f"已删除以下数据表：\n{', '.join(deleted_tables)}")
+                    message = "已删除以下分摊所属：\n"
+                    message += "\n".join(sorted(deleted_allocations))
+                    message += "\n\n对应的数据表：\n"
+                    message += "\n".join(sorted(deleted_tables))
+                    QMessageBox.information(self, "删除成功", message)
                 else:
                     QMessageBox.information(self, "删除成功", 
-                                            "已删除分摊所属，但未找到相关数据表。")
+                                          "已删除分摊所属，但未找到相关数据表。")
 
     def add_group(self, parent_layout):
         # 弹出对话框获取新分组名称
@@ -217,6 +241,7 @@ class CPHouseBelongseting(QWidget):
         table_name, ok = QInputDialog.getItem(self, "选择数据表", "选择要加载的数据表:", table_names, 0, False)
         
         if ok and table_name:
+            self.current_parent_table = table_name  # 保存选择的父表名称
             data = self.controller.fetch_data_from_table(table_name)
             self.available_units = data  # 存储完整的数据
             # 修改显示格式，使用 "ID-房号(面积)" 的格式
@@ -244,8 +269,13 @@ class CPHouseBelongseting(QWidget):
                     unit_data = item.data(Qt.UserRole)
                     data.append((group_name,) + unit_data)  # 添加组名和完整的单元数据
         
-        # 调用控制器的保存方法，包含验证逻辑
-        success, message = self.controller.save_allocation_data(allocation_name, data, self.available_units)
+        # 调用控制器的保存方法，包含验证逻辑和父表信息
+        success, message = self.controller.save_allocation_data(
+            allocation_name, 
+            data, 
+            self.available_units,
+            self.current_parent_table  # 传递父表名称
+        )
         
         if success:
             QMessageBox.information(self, "保存成功", message)

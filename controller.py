@@ -118,13 +118,13 @@ class BuildingAreaController:
             return False, "数据验证失败:\n" + "\n".join(errors)
         return True, "验证通过"
 
-    def save_allocation_data(self, allocation_name, data_to_save, loaded_data):
+    def save_allocation_data(self, allocation_name, data, loaded_data, parent_table):
         """保存分配数据，包含验证步骤"""
-        is_valid, message = self.validate_allocation_data(data_to_save, loaded_data)
+        is_valid, message = self.validate_allocation_data(data, loaded_data)
         if not is_valid:
             return False, message
         
-        created_tables = self.model.save_allocation_data(allocation_name, data_to_save)
+        created_tables = self.model.save_allocation_data(allocation_name, data, parent_table)
         return True, f"数据已成功保存到以下表: {', '.join(created_tables)}"
 
     def delete_allocation_area(self, allocation_name):

@@ -70,6 +70,12 @@ class BuildingAreaModel:
                                   order_index INTEGER NOT NULL,
                                   FOREIGN KEY (parent_id) REFERENCES "分摊模型关系" (model_id))''')
             
+            # 创建分摊所属关系表
+            self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊所属关系" 
+                                 (parent_table TEXT,
+                                  child_table TEXT,
+                                  PRIMARY KEY (parent_table, child_table))''')
+            
             self.conn.commit()
         except Exception as e:
             print(f"初始化表时出错：{str(e)}")
@@ -181,7 +187,7 @@ class BuildingAreaModel:
         self.conn.close()
 
     def get_table_names(self):
-        """获取数据库中所有表的名称"""
+        """获取数据库中所���表的名称"""
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
         return [row[0] for row in self.cursor.fetchall()]
 
@@ -198,7 +204,7 @@ class BuildingAreaModel:
             print(f"获取数据时出错：{str(e)}")
             return []
 
-    def save_allocation_data(self, allocation_name, data):
+    def save_allocation_data(self, allocation_name, data, parent_table=None):
         """保存分配数据到多个表"""
         base_table_name = f"分摊所属_{allocation_name}"
         
@@ -219,21 +225,78 @@ class BuildingAreaModel:
             self.cursor.executemany(f"INSERT INTO '{table_name}' (ID, 房号, 套内面积) VALUES (?, ?, ?)", group_data)
             created_tables.append(table_name)
 
+        # 更新分摊所属关系表
+        if parent_table:
+            for table_name in created_tables:
+                # 先删除可能存在的旧关系
+                self.cursor.execute('''DELETE FROM "分摊所属关系" 
+                                     WHERE child_table = ?''', (table_name,))
+                # 插入新关系
+                self.cursor.execute('''INSERT INTO "分摊所属关系" (parent_table, child_table)
+                                     VALUES (?, ?)''', (parent_table, table_name))
+        
         self.conn.commit()
         return created_tables
 
     def delete_allocation_tables(self, allocation_name):
         """删除与指定分摊所属相关的所有数据表，但保留整幢表"""
         base_table_name = f"分摊所属_{allocation_name}"
-        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", (f"{base_table_name}%",))
-        tables_to_delete = self.cursor.fetchall()
         
+        # 获取要删除的表及其子表
+        tables_to_delete = set()
+        
+        # 首先检查基础表是否存在
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", 
+                           (f"{base_table_name}%",))
+        base_tables = set(row[0] for row in self.cursor.fetchall())
+        if not base_tables:
+            return []  # 如果没有找到相关表，返回空列表
+        
+        tables_to_delete.update(base_tables)
+        
+        # 使用循环获取所有子表
+        try:
+            current_tables = set(base_tables)
+            while current_tables:
+                # 构建查询参数
+                placeholders = ','.join(['?' for _ in current_tables])
+                # 获取当前表集合中所有表的子表
+                self.cursor.execute(f'''SELECT child_table 
+                                      FROM "分摊所属关系" 
+                                      WHERE parent_table IN ({placeholders})''',
+                                tuple(current_tables))
+                
+                # 获取新的子表
+                new_tables = set(row[0] for row in self.cursor.fetchall())
+                # 只保留尚未处理过的表
+                current_tables = new_tables - tables_to_delete
+                # 将新表添加到要删除的集合中
+                tables_to_delete.update(new_tables)
+                
+        except Exception as e:
+            print(f"获取子表时出错：{str(e)}")
+        
+        # 删除表和关系
         deleted_tables = []
-        for (table_name,) in tables_to_delete:
+        for table_name in tables_to_delete:
             # 确保不删除整幢表
             if table_name != "分摊所属_整幢":
-                self.cursor.execute(f"DROP TABLE IF EXISTS '{table_name}'")
-                deleted_tables.append(table_name)
+                try:
+                    self.cursor.execute(f"DROP TABLE IF EXISTS '{table_name}'")
+                    deleted_tables.append(table_name)
+                except Exception as e:
+                    print(f"删除表 {table_name} 时出错：{str(e)}")
+        
+        # 删除分摊所属关系表中的记录
+        if deleted_tables:  # 只有在实际删除了表的情况下才删除关系
+            try:
+                placeholders = ','.join(['?' for _ in deleted_tables])
+                self.cursor.execute(f'''DELETE FROM "分摊所属关系" 
+                                      WHERE parent_table IN ({placeholders})
+                                      OR child_table IN ({placeholders})''',
+                                tuple(deleted_tables) + tuple(deleted_tables))
+            except Exception as e:
+                print(f"删除关系记录时出错：{str(e)}")
         
         self.conn.commit()
         return deleted_tables
@@ -391,7 +454,7 @@ class BuildingAreaModel:
                 new_columns_str = ', '.join(new_columns)
                 self.cursor.execute(f"CREATE TABLE temp_分摊面积 AS SELECT {new_columns_str} FROM '分摊面积'")
 
-                # 删除旧表，重命名新表
+                # 删旧表，重命名新表
                 self.cursor.execute("DROP TABLE '分摊面积'")
                 self.cursor.execute("ALTER TABLE temp_分摊面积 RENAME TO '分摊面积'")
 
@@ -486,7 +549,7 @@ class BuildingAreaModel:
         return self.cursor.fetchall()
 
     def get_child_models(self, model_name):
-        """获取指定模型的所有子模型"""
+        """取指定模型的所有子模型"""
         try:
             # 首先获取当前模型的ID
             self.cursor.execute("""
@@ -537,7 +600,7 @@ class BuildingAreaModel:
                         FROM '分摊模型关系' t
                         JOIN model_tree mt ON t.parent_id = mt.model_id
                     )
-                    DELETE FROM '分摊模型关系'
+                    DELETE FROM '分摊模关系'
                     WHERE model_id IN (SELECT model_id FROM model_tree);
                 """, (model_id,))
                 
