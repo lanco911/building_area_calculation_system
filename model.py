@@ -664,3 +664,24 @@ class BuildingAreaModel:
             print(f"保存整幢数据时出错：{str(e)}")
             self.conn.rollback()
             return False
+
+    def get_available_belong_tables(self):
+        """获取可用于加载的分摊所属表"""
+        try:
+            # 使用子查询找出所有作为父表的belong_id
+            self.cursor.execute('''
+                WITH parent_ids AS (
+                    SELECT DISTINCT parent_id 
+                    FROM "分摊所属关系" 
+                    WHERE parent_id IS NOT NULL
+                )
+                SELECT belong_name, belong_alias
+                FROM "分摊所属关系"
+                WHERE belong_id NOT IN (SELECT parent_id FROM parent_ids)
+                AND belong_alias NOT LIKE '%_分摊公共建筑部位'
+                ORDER BY order_index
+            ''')
+            return self.cursor.fetchall()
+        except Exception as e:
+            print(f"获取可用分摊所属表时出错：{str(e)}")
+            return []

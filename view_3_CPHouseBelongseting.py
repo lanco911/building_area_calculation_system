@@ -149,11 +149,15 @@ class CPHouseBelongseting(QWidget):
                 
                 # 从表名中提取所有相关的分摊所属名称
                 deleted_allocations = set()
-                for table in deleted_tables:
-                    # 从表名中提取分摊所属名称
-                    match = re.match(r'分摊所属_([^_]+)', table)
-                    if match:
-                        deleted_allocations.add(match.group(1))
+                if deleted_tables:  # 如果有删除的表
+                    for table in deleted_tables:
+                        # 从表名中提取分摊所属名称
+                        match = re.match(r'分摊所属_([^_]+)', table)
+                        if match:
+                            deleted_allocations.add(match.group(1))
+                else:
+                    # 如果没有删除的表，至少删除当前的分摊所属
+                    deleted_allocations.add(allocation_name)
                 
                 # 删除所有相关的分摊所属控件
                 tabs_to_remove = []
@@ -179,7 +183,7 @@ class CPHouseBelongseting(QWidget):
                     QMessageBox.information(self, "删除成功", message)
                 else:
                     QMessageBox.information(self, "删除成功", 
-                                          "已删除分摊所属，但未找到相关数据表。")
+                                          f"已删除分摊所属 '{allocation_name}'")
 
     def add_group(self, parent_layout):
         # 弹出对话框获取新分组名称
@@ -237,13 +241,33 @@ class CPHouseBelongseting(QWidget):
         self.group_count -= 1  # 减少分组计数
 
     def load_data(self, allocation_widget):
-        table_names = self.controller.get_table_names()
-        table_name, ok = QInputDialog.getItem(self, "选择数据表", "选择要加载的数据表:", table_names, 0, False)
+        # 获取可用的分摊所属表
+        available_tables = self.controller.get_available_belong_tables()
+        if not available_tables:
+            QMessageBox.warning(self, "警告", "没有可用的数据表")
+            return
         
-        if ok and table_name:
+        # 准备显示选项（使用别名）和对应的表名
+        table_aliases = [row[1] for row in available_tables]
+        table_names = {row[1]: row[0] for row in available_tables}
+        
+        # 显示选择对话框
+        alias, ok = QInputDialog.getItem(
+            self, 
+            "选择数据表", 
+            "选择要加载的数据:", 
+            table_aliases, 
+            0, 
+            False
+        )
+        
+        if ok and alias:
+            # 根据选择的别名获取实际的表名
+            table_name = table_names[alias]
             self.current_parent_table = table_name  # 保存选择的父表名称
             data = self.controller.fetch_data_from_table(table_name)
             self.available_units = data  # 存储完整的数据
+            
             # 修改显示格式，使用 "ID-房号(面积)" 的格式
             display_units = [f"{row[0]}-{row[1]}({row[2]})" for row in data]
             

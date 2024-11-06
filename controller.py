@@ -237,3 +237,7 @@ class BuildingAreaController:
             return True, None
         except Exception as e:
             return False, str(e)
+
+    def get_available_belong_tables(self):
+        """获取可用于加载的分摊所属表"""
+        return self.model.get_available_belong_tables()
