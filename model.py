@@ -56,11 +56,12 @@ class BuildingAreaModel:
                                   套内面积 TEXT, 
                                   用途 TEXT)''')
             
-            # 创建分摊面积表
+            # 创建分摊面积表，确保分摊系数列在套内面积列之后
             self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊面积" 
                                  (ID TEXT PRIMARY KEY, 
                                   房号 TEXT, 
-                                  套内面积 TEXT)''')
+                                  套内面积 TEXT,
+                                  分摊系数 TEXT)''')
             
             # 创建分摊模型关系表
             self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊模型关系" 
@@ -319,7 +320,7 @@ class BuildingAreaModel:
         # 删除表和关系记录
         deleted_tables = []
         for table_name in tables_to_delete:
-            if table_name != "分摊所属_整幢":
+            if table_name != "分摊属_整幢":
                 try:
                     # 删除数据表
                     self.cursor.execute(f"DROP TABLE IF EXISTS '{table_name}'")
@@ -411,6 +412,9 @@ class BuildingAreaModel:
 
         self.conn.commit()
 
+        # 更新总分摊系数
+        self.update_total_coefficient()
+
     def calculate_and_save_apportionable_area(self, tables, upper_coefficient, model_type):
         """计算并保存应分摊公共面积"""
         try:
@@ -483,14 +487,19 @@ class BuildingAreaModel:
             if columns_to_delete:
                 # 创建新表，不包含要删除的列
                 new_columns = [col for col in columns if col not in columns_to_delete]
-                new_columns_str = ', '.join(new_columns)
-                self.cursor.execute(f"CREATE TABLE temp_分摊面积 AS SELECT {new_columns_str} FROM '分摊面积'")
+                # 使用双引号包裹列名
+                new_columns_str = ', '.join(f'"{col}"' for col in new_columns)
+                self.cursor.execute(f'CREATE TABLE "temp_分摊面积" AS SELECT {new_columns_str} FROM "分摊面积"')
 
                 # 删旧表，重命名新表
-                self.cursor.execute("DROP TABLE '分摊面积'")
-                self.cursor.execute("ALTER TABLE temp_分摊面积 RENAME TO '分摊面积'")
+                self.cursor.execute('DROP TABLE "分摊面积"')
+                self.cursor.execute('ALTER TABLE "temp_分摊面积" RENAME TO "分摊面积"')
 
                 self.conn.commit()
+                
+                # 更新总分摊系数
+                self.update_total_coefficient()
+                
                 return columns_to_delete
             else:
                 return []
@@ -501,19 +510,24 @@ class BuildingAreaModel:
 
     def get_calculated_coefficients(self):
         """获取已计算的分摊系数"""
-        self.cursor.execute("PRAGMA table_info('分摊面积')")
-        columns = [row[1] for row in self.cursor.fetchall()]
-        coefficient_columns = [col for col in columns if col.endswith('_分摊系数')]
-        
-        coefficients = []
-        for col in coefficient_columns:
-            model_name = col.replace('_分摊系数', '')
-            self.cursor.execute(f"SELECT DISTINCT {col} FROM '分摊面积' WHERE {col} IS NOT NULL")
-            result = self.cursor.fetchone()
-            if result:
-                coefficients.append((model_name, result[0]))
-        
-        return coefficients
+        try:
+            self.cursor.execute("PRAGMA table_info('分摊面积')")
+            columns = [row[1] for row in self.cursor.fetchall()]
+            coefficient_columns = [col for col in columns if col.endswith('_分摊系数')]
+            
+            coefficients = []
+            for col in coefficient_columns:
+                # 使用引号包裹列名以处理特殊字符
+                self.cursor.execute(f'SELECT DISTINCT "{col}" FROM "分摊面积" WHERE "{col}" IS NOT NULL')
+                result = self.cursor.fetchone()
+                if result:
+                    model_name = col.replace('_分摊系数', '')
+                    coefficients.append((model_name, result[0]))
+            
+            return coefficients
+        except Exception as e:
+            print(f"获取分摊系数时出错：{str(e)}")
+            return []
 
     def save_apportionment_model(self, model_name, parent_model_name=None):
         """保存分摊模型及其层级关系"""
@@ -632,7 +646,7 @@ class BuildingAreaModel:
                         FROM '分摊模型关系' t
                         JOIN model_tree mt ON t.parent_id = mt.model_id
                     )
-                    DELETE FROM '分摊模关系'
+                    DELETE FROM '分摊模型关系'
                     WHERE model_id IN (SELECT model_id FROM model_tree);
                 """, (model_id,))
                 
@@ -685,3 +699,50 @@ class BuildingAreaModel:
         except Exception as e:
             print(f"获取可用分摊所属表时出错：{str(e)}")
             return []
+
+    def update_total_coefficient(self):
+        """更新每个ID的总分摊系数，确保分摊系数列位于套内面积列之后"""
+        try:
+            # 获取当前表的所有列信息
+            self.cursor.execute("PRAGMA table_info('分摊面积')")
+            columns = [row[1] for row in self.cursor.fetchall()]
+            
+            # 如果"分摊系数"列已存在，先删除它
+            if "分摊系数" in columns:
+                # 创建临时表，不包含"分摊系数"列
+                new_columns = [col for col in columns if col != "分摊系数"]
+                # 使用双引号包裹列名
+                new_columns_str = ', '.join(f'"{col}"' for col in new_columns)
+                self.cursor.execute(f'CREATE TABLE "temp_分摊面积" AS SELECT {new_columns_str} FROM "分摊面积"')
+                self.cursor.execute('DROP TABLE "分摊面积"')
+                self.cursor.execute('ALTER TABLE "temp_分摊面积" RENAME TO "分摊面积"')
+                
+                # 更新列信息
+                self.cursor.execute("PRAGMA table_info('分摊面积')")
+                columns = [row[1] for row in self.cursor.fetchall()]
+
+            # 获取所有以"_分摊系数"结尾的列
+            coefficient_columns = [col for col in columns if col.endswith('_分摊系数')]
+
+            # 在"套内面积"列后添加"分摊系数"列
+            self.cursor.execute('ALTER TABLE "分摊面积" ADD COLUMN "分摊系数" TEXT')
+
+            # 如果没有分摊系数列，将总系数设为0
+            if not coefficient_columns:
+                self.cursor.execute('UPDATE "分摊面积" SET "分摊系数" = "0"')
+                self.conn.commit()
+                return
+
+            # 构建SQL语句，计算所有分摊系数的和
+            coeff_sum = " + ".join([f'CAST(COALESCE("{col}", "0") AS FLOAT)' 
+                                   for col in coefficient_columns])
+            update_sql = f'''
+                UPDATE "分摊面积"
+                SET "分摊系数" = ROUND(({coeff_sum}), 6)
+            '''
+            
+            self.cursor.execute(update_sql)
+            self.conn.commit()
+        except Exception as e:
+            print(f"更新总分摊系数时出错：{str(e)}")
+            self.conn.rollback()
