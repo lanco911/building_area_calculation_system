@@ -56,12 +56,6 @@ class BuildingAreaModel:
                                   套内面积 TEXT, 
                                   用途 TEXT)''')
             
-            # 创建分摊面积表，确保分摊系数列在套内面积列之后
-            self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊面积" 
-                                 (ID TEXT PRIMARY KEY, 
-                                  房号 TEXT, 
-                                  套内面积 TEXT,
-                                  分摊系数 TEXT)''')
             
             # 创建分摊模型关系表
             self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊模型关系" 
@@ -88,6 +82,13 @@ class BuildingAreaModel:
                 self.cursor.execute('''INSERT INTO "分摊所属关系" 
                                      (belong_name, belong_alias, parent_id, order_index)
                                      VALUES ("分摊所属_整幢", "整幢", NULL, 0)''')
+            
+            # 创建分摊系数计算过程表，确保分摊系数列在套内面积列之后
+            self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊系数计算过程" 
+                                 (ID TEXT PRIMARY KEY, 
+                                  房号 TEXT, 
+                                  套内面积 TEXT,
+                                  分摊系数 TEXT)''')
             
             self.conn.commit()
         except Exception as e:
@@ -366,19 +367,19 @@ class BuildingAreaModel:
         return total_area
 
     def save_apportionment_coefficient(self, tables, coefficient, model_type):
-        # 创建或更新"分摊面积"表
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊面积" 
+        # 创建或更新"分摊系数计算过程"表
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊系数计算过程" 
                                (ID TEXT PRIMARY KEY, 房号 TEXT, 套内面积 TEXT)''')
 
         # 添加新的分摊系数列和分摊公共面积列（如果不存在）
         coefficient_column = f"{model_type}_分摊系数"
         area_column = f"{model_type}_分摊公共面积"
-        self.cursor.execute(f"PRAGMA table_info('分摊面积')")
+        self.cursor.execute(f"PRAGMA table_info('分摊系数计算过程')")
         columns = [row[1] for row in self.cursor.fetchall()]
         if coefficient_column not in columns:
-            self.cursor.execute(f"ALTER TABLE '分摊面积' ADD COLUMN '{coefficient_column}' TEXT")
+            self.cursor.execute(f"ALTER TABLE '分摊系数计算过程' ADD COLUMN '{coefficient_column}' TEXT")
         if area_column not in columns:
-            self.cursor.execute(f"ALTER TABLE '分摊面积' ADD COLUMN '{area_column}' TEXT")
+            self.cursor.execute(f"ALTER TABLE '分摊系数计算过程' ADD COLUMN '{area_column}' TEXT")
 
         # 将系数格式化为保留6位小数的字符串
         formatted_coefficient = f"{coefficient:.6f}"
@@ -394,18 +395,18 @@ class BuildingAreaModel:
                 formatted_apportioned_area = f"{apportioned_area:.2f}"  # 修改为保留2位小数
 
                 # 检查是否已存在该 ID 的记录
-                self.cursor.execute("SELECT * FROM '分摊面积' WHERE ID = ?", (row[0],))
+                self.cursor.execute("SELECT * FROM '分摊系数计算过程' WHERE ID = ?", (row[0],))
                 existing_record = self.cursor.fetchone()
                 
                 if existing_record:
                     # 如果记录已存在，更新它
-                    self.cursor.execute(f'''UPDATE "分摊面积" 
+                    self.cursor.execute(f'''UPDATE "分摊系数计算过程" 
                                             SET 房号 = ?, 套内面积 = ?, '{coefficient_column}' = ?, '{area_column}' = ?
                                             WHERE ID = ?''', 
                                         (row[1], row[2], formatted_coefficient, formatted_apportioned_area, row[0]))
                 else:
                     # 如果记录不存在，插入新记录
-                    self.cursor.execute(f'''INSERT INTO "分摊面积" 
+                    self.cursor.execute(f'''INSERT INTO "分摊系数计算过程" 
                                             (ID, 房号, 套内面积, '{coefficient_column}', '{area_column}')
                                             VALUES (?, ?, ?, ?, ?)''', 
                                         (row[0], row[1], row[2], formatted_coefficient, formatted_apportioned_area))
@@ -418,16 +419,16 @@ class BuildingAreaModel:
     def calculate_and_save_apportionable_area(self, tables, upper_coefficient, model_type):
         """计算并保存应分摊公共面积"""
         try:
-            # 创建或更新"分摊面积"表
-            self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊面积" 
+            # 创建或更新"分摊系数计算过程"表
+            self.cursor.execute('''CREATE TABLE IF NOT EXISTS "分摊系数计算过程" 
                                  (ID TEXT PRIMARY KEY, 房号 TEXT, 套内面积 TEXT)''')
             
             # 添加新的应分摊公共面积列（如果不存在）
             area_column = f"{model_type}_应分摊公共面积"
-            self.cursor.execute(f"PRAGMA table_info('分摊面积')")
+            self.cursor.execute(f"PRAGMA table_info('分摊系数计算过程')")
             columns = [row[1] for row in self.cursor.fetchall()]
             if area_column not in columns:
-                self.cursor.execute(f"ALTER TABLE '分摊面积' ADD COLUMN '{area_column}' TEXT")
+                self.cursor.execute(f"ALTER TABLE '分摊系数计算过程' ADD COLUMN '{area_column}' TEXT")
 
             # 计算并保存每个ID的应分摊公共面积
             for table in tables:
@@ -440,12 +441,12 @@ class BuildingAreaModel:
                     formatted_area = f"{apportionable_area:.2f}"  # 保留2位小数
 
                     # 检查是否已存在该ID的记录
-                    self.cursor.execute("SELECT * FROM '分摊面积' WHERE ID = ?", (row[0],))
+                    self.cursor.execute("SELECT * FROM '分摊系数计算过程' WHERE ID = ?", (row[0],))
                     existing_record = self.cursor.fetchone()
                     
                     if existing_record:
                         # 更新现有记录
-                        self.cursor.execute(f'''UPDATE "分摊面积" 
+                        self.cursor.execute(f'''UPDATE "分摊系数计算过程" 
                                              SET 房号 = ?, 套内面积 = ?, '{area_column}' = ?
                                              WHERE ID = ?''', 
                                           (row[1], row[2], formatted_area, row[0]))
@@ -453,7 +454,7 @@ class BuildingAreaModel:
                         # 构建动态SQL语句
                         columns = ["ID", "房号", "套内面积", area_column]
                         placeholders = ["?"] * len(columns)
-                        sql = f'''INSERT INTO "分摊面积" ({', '.join(f'"{col}"' for col in columns)})
+                        sql = f'''INSERT INTO "分摊系数计算过程" ({', '.join(f'"{col}"' for col in columns)})
                                  VALUES ({', '.join(placeholders)})'''
                         self.cursor.execute(sql, (row[0], row[1], row[2], formatted_area))
 
@@ -466,8 +467,8 @@ class BuildingAreaModel:
     def delete_apportionment_model_data(self, model_name):
         """删除与指定分摊模型相关的数列"""
         try:
-            # 获取"分摊面积"表的列信息
-            self.cursor.execute("PRAGMA table_info('分摊面积')")
+            # 获取"分摊系数计算过程"表的列信息
+            self.cursor.execute("PRAGMA table_info('分摊系数计算过程')")
             columns = [row[1] for row in self.cursor.fetchall()]
 
             # 找到与模型相关的列
@@ -489,11 +490,11 @@ class BuildingAreaModel:
                 new_columns = [col for col in columns if col not in columns_to_delete]
                 # 使用双引号包裹列名
                 new_columns_str = ', '.join(f'"{col}"' for col in new_columns)
-                self.cursor.execute(f'CREATE TABLE "temp_分摊面积" AS SELECT {new_columns_str} FROM "分摊面积"')
+                self.cursor.execute(f'CREATE TABLE "temp_分摊系数计算过程" AS SELECT {new_columns_str} FROM "分摊系数计算过程"')
 
                 # 删旧表，重命名新表
-                self.cursor.execute('DROP TABLE "分摊面积"')
-                self.cursor.execute('ALTER TABLE "temp_分摊面积" RENAME TO "分摊面积"')
+                self.cursor.execute('DROP TABLE "分摊系数计算过程"')
+                self.cursor.execute('ALTER TABLE "temp_分摊系数计算过程" RENAME TO "分摊系数计算过程"')
 
                 self.conn.commit()
                 
@@ -511,14 +512,14 @@ class BuildingAreaModel:
     def get_calculated_coefficients(self):
         """获取已计算的分摊系数"""
         try:
-            self.cursor.execute("PRAGMA table_info('分摊面积')")
+            self.cursor.execute("PRAGMA table_info('分摊系数计算过程')")
             columns = [row[1] for row in self.cursor.fetchall()]
             coefficient_columns = [col for col in columns if col.endswith('_分摊系数')]
             
             coefficients = []
             for col in coefficient_columns:
                 # 使用引号包裹列名以处理特殊字符
-                self.cursor.execute(f'SELECT DISTINCT "{col}" FROM "分摊面积" WHERE "{col}" IS NOT NULL')
+                self.cursor.execute(f'SELECT DISTINCT "{col}" FROM "分摊系数计算过程" WHERE "{col}" IS NOT NULL')
                 result = self.cursor.fetchone()
                 if result:
                     model_name = col.replace('_分摊系数', '')
@@ -704,7 +705,7 @@ class BuildingAreaModel:
         """更新每个ID的总分摊系数，确保分摊系数列位于套内面积列之后"""
         try:
             # 获取当前表的所有列信息
-            self.cursor.execute("PRAGMA table_info('分摊面积')")
+            self.cursor.execute("PRAGMA table_info('分摊系数计算过程')")
             columns = [row[1] for row in self.cursor.fetchall()]
             
             # 如果"分摊系数"列已存在，先删除它
@@ -713,23 +714,23 @@ class BuildingAreaModel:
                 new_columns = [col for col in columns if col != "分摊系数"]
                 # 使用双引号包裹列名
                 new_columns_str = ', '.join(f'"{col}"' for col in new_columns)
-                self.cursor.execute(f'CREATE TABLE "temp_分摊面积" AS SELECT {new_columns_str} FROM "分摊面积"')
-                self.cursor.execute('DROP TABLE "分摊面积"')
-                self.cursor.execute('ALTER TABLE "temp_分摊面积" RENAME TO "分摊面积"')
+                self.cursor.execute(f'CREATE TABLE "temp_分摊系数计算过程" AS SELECT {new_columns_str} FROM "分摊系数计算过程"')
+                self.cursor.execute('DROP TABLE "分摊系数计算过程"')
+                self.cursor.execute('ALTER TABLE "temp_分摊系数计算过程" RENAME TO "分摊系数计算过程"')
                 
                 # 更新列信息
-                self.cursor.execute("PRAGMA table_info('分摊面积')")
+                self.cursor.execute("PRAGMA table_info('分摊系数计算过程')")
                 columns = [row[1] for row in self.cursor.fetchall()]
 
             # 获取所有以"_分摊系数"结尾的列
             coefficient_columns = [col for col in columns if col.endswith('_分摊系数')]
 
             # 在"套内面积"列后添加"分摊系数"列
-            self.cursor.execute('ALTER TABLE "分摊面积" ADD COLUMN "分摊系数" TEXT')
+            self.cursor.execute('ALTER TABLE "分摊系数计算过程" ADD COLUMN "分摊系数" TEXT')
 
             # 如果没有分摊系数列，将总系数设为0
             if not coefficient_columns:
-                self.cursor.execute('UPDATE "分摊面积" SET "分摊系数" = "0"')
+                self.cursor.execute('UPDATE "分摊系数计算过程" SET "分摊系数" = "0"')
                 self.conn.commit()
                 return
 
@@ -737,7 +738,7 @@ class BuildingAreaModel:
             coeff_sum = " + ".join([f'CAST(COALESCE("{col}", "0") AS FLOAT)' 
                                    for col in coefficient_columns])
             update_sql = f'''
-                UPDATE "分摊面积"
+                UPDATE "分摊系数计算过程"
                 SET "分摊系数" = ROUND(({coeff_sum}), 6)
             '''
             
