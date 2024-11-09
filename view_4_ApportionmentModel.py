@@ -30,7 +30,7 @@ class CheckableComboBox(QComboBox):
     
     特点：
     - 支持多选功能
-    - 显示已选项的文本表
+    - 显示已选项的文本
     - 保持选择状态
     """
     # 自定义的可勾选ComboBox
@@ -112,8 +112,8 @@ class ApportionmentModelView(QWidget):
     """
     分摊模型的主视图界面
     
-    主要功能：
-    1. 创建和管理多个分摊模型
+    主要功��：
+    1. 创建和理多个分摊模型
     2. 提供分摊模型的添加、删除功能
     3. 支持计算分摊系数
     4. 提供预览和保存功能
@@ -311,7 +311,7 @@ class ApportionmentModelView(QWidget):
         c_tables = c_combo.currentData()
         h_tables = h_combo.currentData()
         
-        # 获取上级分摊系数
+        # 获取���级分摊系数
         upper_coefficient = upper_coefficient_combo.currentData()
         if upper_coefficient is None:
             upper_coefficient = 0
@@ -348,10 +348,27 @@ class ApportionmentModelView(QWidget):
             # 更新分摊说明
             explanation = model_widget.findChild(QLabel, "explanation")
             if explanation:
-                c_tables_display = [table.split('_')[-1] for table in c_tables]
-                h_tables_display = [table.split('_')[-1] for table in h_tables]
-                explanation.setText(f"分摊说明:\n应分摊的共有建筑部位：{', '.join(c_tables_display)}\n"
-                                    f"参加分摊的户名称：{', '.join(h_tables_display)}")
+                # 获取所选表中的房号信息（仅用于共有建筑部位）
+                c_rooms = []
+                for table in c_tables:
+                    data = self.controller.fetch_data_from_table(table)
+                    if data:
+                        # 获取每条记录的房号（第二个元素）
+                        rooms = [record[1] for record in data]
+                        c_rooms.extend(rooms)
+                
+                # 使用"、"连接房号（用于共有建筑部位）
+                c_rooms_text = "、".join(c_rooms) if c_rooms else "未选择"
+                
+                # 参加分摊的户名称使用原来的显示方式（表名的最后一部分）
+                h_tables_display = [table.split('_')[-1] for table in h_tables] if h_tables else ["未选择"]
+                h_tables_text = "、".join(h_tables_display)
+                
+                # 更新分摊说明文本，将分摊系数放在第一行
+                explanation.setText(f"分摊说明:\n"
+                                  f"分摊系数：{coefficient:.6f}\n"
+                                  f"应分摊的共有建筑部位：{c_rooms_text}\n"
+                                  f"参加分摊的户名称：{h_tables_text}")
 
     def create_model_widget(self, selected_type, parent_model):
         """
@@ -456,12 +473,21 @@ class ApportionmentModelView(QWidget):
         model_layout.addWidget(result_display)
 
         # 添加分摊说明
-        explanation = QLabel("分摊说明:\n应分摊的共有建筑部位：未选择\n参加分摊的户名称：未选择")
+        explanation = QLabel("分摊说明:\n"
+                           "分摊系数：未计算\n"
+                           "应分摊的共有建筑部位：未选择\n"
+                           "参加分摊的户名称：未选择")
         explanation.setObjectName("explanation")
+        # 设置自动换行
+        explanation.setWordWrap(True)
+        # 设置最小高度，确保有足够空间显示内容
+        explanation.setMinimumHeight(80)
+        # 设置对齐方式，使文本左对齐
+        explanation.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         model_layout.addWidget(explanation)
 
         # 设置固定宽度高度以确保横向排列时的一致性
-        model_widget.setFixedSize(250, 450)
+        model_widget.setFixedSize(250, 500)  # 将高度从450增加到500
 
         # 将新模型添加到滚动区域，并设置在顶端左对齐
         self.scroll_layout.addWidget(model_widget, 0, Qt.AlignTop | Qt.AlignLeft)
