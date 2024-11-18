@@ -41,7 +41,7 @@ class HousingUnit(QWidget):
         # 创建表格
         self.table = QTableWidget()
         self.table.setColumnCount(7)
-        self.table.setHorizontalHeaderLabels(["HID", "实际楼层", "房号", "主间面积", "阳台面积", "套内面积", "用途"])
+        self.table.setHorizontalHeaderLabels(["ID", "实际楼层", "房号", "主间面积", "阳台面积", "套内面积", "用途"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         main_layout.addWidget(self.table)
 
@@ -86,7 +86,7 @@ class HousingUnit(QWidget):
         返回:
             list: 包含表格表头的列表
         """
-        return ["HID", "实际楼层", "房号", "主间面积", "阳台面积", "套内面积", "用途"]
+        return ["ID", "实际楼层", "房号", "主间面积", "阳台面积", "套内面积", "用途"]
 
 if __name__ == '__main__':
     """

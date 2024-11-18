@@ -26,9 +26,9 @@ class BuildingAreaModel:
     def initialize_tables(self):
         """初始化数据库表结构"""
         try:
-            # 创建户单元套内面积表
+            # 修改户单元套内面积表，将 HID 改为 ID
             self.cursor.execute('''CREATE TABLE IF NOT EXISTS "户单元套内面积" 
-                                 (HID TEXT PRIMARY KEY, 
+                                 (ID TEXT PRIMARY KEY, 
                                   实际楼层 TEXT, 
                                   房号 TEXT, 
                                   主间面积 TEXT, 
@@ -36,9 +36,9 @@ class BuildingAreaModel:
                                   套内面积 TEXT, 
                                   用途 TEXT)''')
             
-            # 创建共有建筑面积表
+            # 修改共有建筑面积表，将 CID 改为 ID
             self.cursor.execute('''CREATE TABLE IF NOT EXISTS "共有建筑面积" 
-                                 (CID TEXT PRIMARY KEY, 
+                                 (ID TEXT PRIMARY KEY, 
                                   实际楼层 TEXT, 
                                   房号 TEXT, 
                                   主间面积 TEXT, 
@@ -122,7 +122,26 @@ class BuildingAreaModel:
                 self.headers = df.columns.tolist()
                 
                 # 将DataFrame转换为列表
-                self.data = df.values.tolist()
+                imported_data = df.values.tolist()
+                
+                # 获取当前最大ID号
+                table_name = self.current_table if hasattr(self, 'current_table') else None
+                if table_name == "户单元套内面积":
+                    prefix = "H"
+                    self.cursor.execute('SELECT MAX(CAST(SUBSTR(ID, 2) AS INTEGER)) FROM "户单元套内面积" WHERE ID LIKE "H%"')
+                elif table_name == "共有建筑面积":
+                    prefix = "C"
+                    self.cursor.execute('SELECT MAX(CAST(SUBSTR(ID, 2) AS INTEGER)) FROM "共有建筑面积" WHERE ID LIKE "C%"')
+                else:
+                    return []
+                
+                max_id = self.cursor.fetchone()[0] or 0
+                
+                # 为每行数据生成新的ID
+                self.data = []
+                for i, row in enumerate(imported_data):
+                    new_id = f"{prefix}{max_id + i + 1}"
+                    self.data.append([new_id] + row)
                 
                 print(f"成功导入数据，共{len(self.data)}行")
                 return self.data
@@ -179,16 +198,16 @@ class BuildingAreaModel:
             # 清空幢总建筑面积表
             self.cursor.execute('DELETE FROM "幢总建筑面积"')
 
-            # 插入户单元套内面积数据
+            # 插入户单元套内面积数据，不再需要添加'H'前缀
             self.cursor.execute('''INSERT INTO "幢总建筑面积" 
                                  (ID, 实际楼层, 房号, 主间面积, 阳台面积, 套内面积, 用途)
-                                 SELECT 'H' || HID, 实际楼层, 房号, 主间面积, 阳台面积, 套内面积, 用途 
+                                 SELECT ID, 实际楼层, 房号, 主间面积, 阳台面积, 套内面积, 用途 
                                  FROM "户单元套内面积"''')
 
-            # 插入共有建筑面积数据
+            # 插入共有建筑面积数据，不再需要添加'C'前缀
             self.cursor.execute('''INSERT INTO "幢总建筑面积" 
                                  (ID, 实际楼层, 房号, 主间面积, 阳台面积, 套内面积, 用途)
-                                 SELECT 'C' || CID, 实际楼层, 房号, 主间面积, 阳台面积, 套内面积, 用途 
+                                 SELECT ID, 实际楼层, 房号, 主间面积, 阳台面积, 套内面积, 用途 
                                  FROM "共有建筑面积"''')
 
             self.conn.commit()

@@ -43,6 +43,7 @@ class BuildingAreaController:
         """
         导入住房单元数据并更新相应的视图
         """
+        self.model.current_table = "户单元套内面积"  # 设置当前表名
         data = self.model.import_data()
         self.view.housing_unit_1.update_table(data)
 
@@ -50,6 +51,7 @@ class BuildingAreaController:
         """
         导入公共财产数据并更新相应的视图
         """
+        self.model.current_table = "共有建筑面积"  # 设置当前表名
         data = self.model.import_data()
         self.view.common_property_house_2.update_table(data)
 
